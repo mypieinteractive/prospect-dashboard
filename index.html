@@ -15,7 +15,6 @@
         * { box-sizing: border-box; font-family: Calibri, 'Candara', 'Segoe UI', sans-serif; }
         body { margin: 0; padding: 0; height: 100vh; width: 100vw; display: flex; background: #fff; overflow: hidden; }
         
-        /* VIEWS */
         body.view-driver { flex-direction: column; }
         .view-driver #map-wrapper { height: 40vh; min-height: 40vh; width: 100%; border-bottom: 2px solid #ccc; }
         .view-driver #sidebar { height: 60vh; min-height: 60vh; width: 100%; }
@@ -27,32 +26,27 @@
         #map-wrapper { position: relative; background-color: #efefef; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; height: 100%; }
         
-        /* INSTRUCTION NOTE */
+        /* DYNAMIC SELECTION NOTE */
         #selection-note {
             position: absolute; top: 10px; left: 10px; z-index: 150;
-            background: rgba(255, 255, 255, 0.85); padding: 6px 10px;
+            background: rgba(255, 255, 255, 0.9); padding: 6px 10px;
             border-radius: 4px; border: 1px solid #ccc; font-size: 11px;
-            color: #444; pointer-events: none; max-width: 180px;
-            line-height: 1.3; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            color: #444; pointer-events: none; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
 
-        /* BOX SELECTION UI */
         .boxdraw { background: rgba(43, 87, 154, 0.2); border: 2px solid var(--blue); position: absolute; top: 0; left: 0; width: 0; height: 0; z-index: 100; pointer-events: none; }
 
-        /* FLOATING ACTION BUTTONS */
         .map-overlay-btns { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); z-index: 200; display: flex; flex-direction: column; gap: 8px; align-items: center; }
         .floating-btn { background: white; border: 1px solid #ccc; border-radius: 20px; padding: 8px 16px; font-weight: bold; font-size: 13px; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.2); display: none; white-space: nowrap; }
         #bulk-remove-btn { background: var(--red); color: white; border-color: var(--red); }
         #bulk-complete-btn { background: var(--green); color: white; border-color: var(--green); }
-        #reset-view-btn { display: none; }
 
         #sidebar { display: flex; flex-direction: column; background: white; z-index: 10; }
         #search-container { padding: 8px; border-bottom: 1px solid #ddd; }
         #search-input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
         #stop-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
-        /* TILE STRUCTURE */
-        .stop-item { display: flex; align-items: stretch; border-bottom: 1px solid #eee; background: white; min-height: 62px; }
+        .stop-item { display: flex; align-items: stretch; border-bottom: 1px solid #eee; background: white; min-height: 58px; }
         .stop-item.completed { opacity: 0.5; background: #f9f9f9; }
         .stop-item.selected { background: var(--fade-blue) !important; }
         .stop-sidebar { width: 32px; background-color: var(--purple); color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 15px; }
@@ -64,36 +58,26 @@
         .row-details { font-size: 11px; color: #888; margin-top: 1px; }
         .due-warning { color: var(--red); font-weight: bold; }
 
-        .stop-actions { display: flex; align-items: center; padding-right: 8px; gap: 4px; }
-        .icon-btn { font-size: 24px; cursor: pointer; padding: 4px; }
-        .check-icon { color: var(--green); }
-        .nav-icon { color: var(--blue); }
-        .more-icon { color: #888; }
-        
-        #context-menu { position: fixed; background: white; border: 1px solid #ccc; box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 3000; border-radius: 6px; display: none; overflow: hidden; }
-        .context-item { padding: 12px 20px; font-weight: bold; cursor: pointer; color: var(--red); font-size: 14px; }
-        .context-item:hover { background: #f5f5f5; }
-
         #controls { display: none; padding: 8px; background: #f1f4f9; border-bottom: 1px solid #ddd; align-items: center; justify-content: center; gap: 8px; }
-        .marker { width: 28px; height: 28px; background: var(--red); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 12px; cursor: pointer; }
+        
+        /* PIN STYLE */
+        .marker { width: 28px; height: 28px; background: var(--red); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 12px; cursor: pointer; position: relative; }
         .marker.bulk-selected { background: var(--blue) !important; box-shadow: 0 0 10px var(--blue); }
         .marker.completed { background: #999; }
-        
+        .marker-warning { position: absolute; top: -10px; right: -10px; font-size: 16px; }
+
         #modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index: 2000; display:none; align-items:center; justify-content:center; }
         .modal-box { background:white; padding:20px; border-radius:12px; width:85%; max-width:340px; text-align: center; }
     </style>
 </head>
-<body class="view-driver" onclick="hideContextMenu()">
+<body class="view-driver">
 
 <div id="map-wrapper">
-    <div id="selection-note">
-        <b>Desktop:</b> Shift + Drag to select multiple<br>
-        <b>Mobile:</b> Long Press + Drag to select multiple
-    </div>
+    <div id="selection-note"></div>
     <div class="map-overlay-btns">
         <button id="reset-view-btn" class="floating-btn" onclick="resetMapView()">Reset View</button>
         <button id="bulk-complete-btn" class="floating-btn" onclick="triggerBulkComplete()">Mark selected as completed</button>
-        <button id="bulk-remove-btn" class="floating-btn" onclick="triggerBulkDelete()">Remove orders from route</button>
+        <button id="bulk-remove-btn" class="floating-btn" onclick="triggerBulkDelete()">Remove selected from route</button>
     </div>
     <div id="map"></div>
 </div>
@@ -108,7 +92,6 @@
     <div id="stop-list"></div>
 </div>
 
-<div id="context-menu"><div class="context-item" id="context-delete-btn">Remove order from route</div></div>
 <div id="modal-overlay"><div class="modal-box" id="modal-content"></div></div>
 
 <script>
@@ -117,6 +100,12 @@
     
     const params = new URLSearchParams(window.location.search), routeId = params.get('id'), driver = params.get('driver'), viewMode = params.get('view') || 'driver';
     document.body.className = `view-${viewMode}`;
+
+    // Dynamic Instruction Logic
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    document.getElementById('selection-note').innerHTML = isMobile ? 
+        "<b>Mobile:</b> Long Press + Drag to select multiple" : 
+        "<b>Desktop:</b> Shift + Drag to select multiple";
 
     mapboxgl.accessToken = MAPBOX_TOKEN;
     const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/streets-v12', center: [-96.797, 32.776], zoom: 11 });
@@ -132,6 +121,14 @@
         pressTimer = window.setTimeout(() => { longPressActive = true; mouseDown(e.touches[0]); }, 700);
     }, {passive: true});
     canvas.addEventListener('touchend', () => { clearTimeout(pressTimer); if(!longPressActive) map.dragPan.enable(); });
+
+    // Deselect on empty map click
+    map.on('click', (e) => {
+        if (e.originalEvent.target.classList.contains('mapboxgl-canvas')) {
+            selectedIds.clear();
+            updateSelectionUI();
+        }
+    });
 
     function mousePos(e) {
         const rect = canvas.getBoundingClientRect();
@@ -192,9 +189,9 @@
                 if (el) el.classList.add('selected');
             }
         });
-        const hasBulk = selectedIds.size > 1;
-        document.getElementById('bulk-remove-btn').style.display = hasBulk ? 'block' : 'none';
-        document.getElementById('bulk-complete-btn').style.display = hasBulk ? 'block' : 'none';
+        const hasSelection = selectedIds.size > 0;
+        document.getElementById('bulk-remove-btn').style.display = hasSelection ? 'block' : 'none';
+        document.getElementById('bulk-complete-btn').style.display = hasSelection ? 'block' : 'none';
     }
 
     // --- MAIN ENGINE ---
@@ -217,9 +214,11 @@
             item.className = `stop-item ${s.status}`;
             item.id = `item-${s.id}`;
             item.setAttribute('data-search', `${s.address} ${s.client}`.toLowerCase());
+            
             const due = s.dueDate ? new Date(s.dueDate) : null;
+            const isLate = (due && due <= new Date());
             const dueFmt = due ? `${due.getMonth()+1}/${due.getDate()}` : "N/A";
-            const dueHtml = (due && due <= new Date()) ? `<span class="due-warning">⚠️ ${dueFmt}</span>` : dueFmt;
+            const dueHtml = isLate ? `<span class="due-warning">⚠️ ${dueFmt}</span>` : dueFmt;
 
             item.innerHTML = `
                 <div class="stop-sidebar">${i + 1}</div>
@@ -230,18 +229,30 @@
                     <div class="row-meta">${s.eta} | ${s.dist}</div>
                     <div class="row-details">${dueHtml} | ${s.type}</div>
                 </div>
-                <div class="stop-actions">
-                    <i class="fa-solid fa-circle-check icon-btn check-icon" onclick="toggleComplete('${s.id}')"></i>
-                    <i class="fa-solid fa-location-arrow icon-btn nav-icon" onclick="openNav('${s.lat}','${s.lng}')"></i>
-                    <i class="fa-solid fa-ellipsis-vertical icon-btn more-icon" onclick="showActionMenu(event, '${s.id}')"></i>
-                </div>
             `;
             list.appendChild(item);
 
             const el = document.createElement('div');
             el.className = `marker ${s.status}`; el.innerText = i + 1;
-            el.addEventListener('contextmenu', (e) => { e.preventDefault(); showActionMenu(e, s.id); });
-            el.onclick = () => { selectedIds.clear(); selectedIds.add(s.id); updateSelectionUI(); focusItem(s.id); };
+            
+            if (isLate) {
+                const warn = document.createElement('div');
+                warn.className = 'marker-warning'; warn.innerText = '⚠️';
+                el.appendChild(warn);
+            }
+
+            el.onclick = (e) => {
+                if (e.shiftKey) {
+                    if (selectedIds.has(s.id)) selectedIds.delete(s.id);
+                    else selectedIds.add(s.id);
+                } else {
+                    selectedIds.clear();
+                    selectedIds.add(s.id);
+                }
+                updateSelectionUI();
+                focusItem(s.id);
+            };
+
             const m = new mapboxgl.Marker(el).setLngLat([s.lng, s.lat]).addTo(map);
             m._stopId = s.id; markers.push(m); bounds.extend([s.lng, s.lat]);
         });
@@ -249,7 +260,7 @@
     }
 
     function triggerBulkDelete() {
-        if(confirm(`Remove ${selectedIds.size} orders from route?`)) {
+        if(confirm(`Remove selected orders from route?`)) {
             selectedIds.forEach(id => { stops.find(s => s.id == id).status = 'cancelled'; });
             selectedIds.clear(); render(); drawRoute(); updateSelectionUI();
             document.getElementById('controls').style.display = 'flex';
@@ -257,33 +268,20 @@
     }
 
     function triggerBulkComplete() {
-        if(confirm(`Mark ${selectedIds.size} orders as completed?`)) {
+        if(confirm(`Mark selected as completed?`)) {
             selectedIds.forEach(id => { stops.find(s => s.id == id).status = 'completed'; });
             selectedIds.clear(); render(); drawRoute(); updateSelectionUI();
             document.getElementById('controls').style.display = 'flex';
         }
     }
 
-    function triggerDelete(id) {
-        if(confirm("Remove order from route?")) { 
-            stops.find(s => s.id == id).status = 'cancelled'; 
-            render(); drawRoute(); document.getElementById('controls').style.display = 'flex'; 
-        }
-    }
-
-    // Helper functions...
-    function showActionMenu(e, id) {
-        e.stopPropagation(); const menu = document.getElementById('context-menu');
-        const x = e.clientX || e.pageX, y = e.clientY || e.pageY;
-        menu.style.left = `${x - 100}px`; menu.style.top = `${y}px`; menu.style.display = 'block';
-        document.getElementById('context-delete-btn').onclick = () => { triggerDelete(id); hideContextMenu(); };
-    }
-    function hideContextMenu() { document.getElementById('context-menu').style.display = 'none'; }
     function resetMapView() { if (initialBounds) map.fitBounds(initialBounds, { padding: 50, maxZoom: 15 }); }
+    
     function filterList() {
         const q = document.getElementById('search-input').value.toLowerCase();
         document.querySelectorAll('.stop-item').forEach(el => el.style.display = el.getAttribute('data-search').includes(q) ? 'flex' : 'none');
     }
+
     function drawRoute() {
         const act = stops.filter(s => s.status !== 'cancelled'); if (act.length < 2) return;
         const crd = act.map(s => [s.lng, s.lat]);
@@ -293,23 +291,20 @@
             map.addLayer({ "id": "route", "type": "line", "source": "route", "layout": { "line-join": "round", "line-cap": "round" }, "paint": { "line-color": "#2b579a", "line-width": 4, "line-opacity": 0.5 } });
         }
     }
+
     function focusItem(id) {
-        document.querySelectorAll('.stop-item').forEach(el => el.classList.remove('selected'));
         const stop = stops.find(s => s.id == id), el = document.getElementById(`item-${id}`);
-        if(el) { el.classList.add('selected'); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+        if(el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         map.flyTo({ center: [stop.lng, stop.lat], zoom: 16 });
     }
-    function toggleComplete(id) { const idx = stops.findIndex(s => s.id == id); stops[idx].status = (stops[idx].status === 'completed') ? '' : 'completed'; render(); drawRoute(); }
-    function openNav(lat, lng) { let pref = localStorage.getItem('navPref'); if (!pref) { showNavChoice(lat, lng); } else { launchMaps(pref, lat, lng); } }
-    function showNavChoice(lat, lng) { const modal = document.getElementById('modal-overlay'); modal.style.display = 'flex'; document.getElementById('modal-content').innerHTML = `<h3>Maps Preference:</h3><div style="display:flex; flex-direction:column; gap:8px;"><button style="padding:12px; border:none; border-radius:6px; background:var(--blue); color:white; font-weight:bold;" onclick="setNavPref('google','${lat}','${lng}')">Google Maps</button><button style="padding:12px; border:none; border-radius:6px; background:#eee;" onclick="setNavPref('apple','${lat}','${lng}')">Apple Maps</button></div>`; }
-    function setNavPref(pref, lat, lng) { localStorage.setItem('navPref', pref); document.getElementById('modal-overlay').style.display = 'none'; launchMaps(pref, lat, lng); }
-    function launchMaps(pref, lat, lng) { const url = pref === 'google' ? `comgooglemaps://?daddr=${lat},${lng}` : `maps://maps.apple.com/?daddr=${lat},${lng}`; window.location.href = url; }
+
     function showSyncOptions(type) {
         const modal = document.getElementById('modal-overlay'); modal.style.display = 'flex';
         let tOpt = ''; for(let h=6; h<=18; h++){ let hr = h>12?h-12:h; let ap = h>=12?'PM':'AM'; tOpt += `<option value="${hr}:00 ${ap}">${hr}:00 ${ap}</option><option value="${hr}:30 ${ap}">${hr}:30 ${ap}</option>`; }
         const defS = stops.length ? stops[0].address : "", defE = stops.length ? stops[stops.length-1].address : "";
         document.getElementById('modal-content').innerHTML = `<h3 style="margin-top:0">Update Route</h3><select id="start-time-select" style="width:100%; padding:8px; margin:5px 0;">${tOpt}</select><input type="text" id="start-addr" value="${defS}" style="width:100%; padding:8px; margin:5px 0;"><input type="text" id="end-addr" value="${defE}" style="width:100%; padding:8px; margin:5px 0;"><div style="display:flex; gap:10px; margin-top:20px;"><button style="flex:1; padding:10px; border:none; border-radius:6px;" onclick="document.getElementById('modal-overlay').style.display='none'">Cancel</button><button style="flex:1; padding:10px; border:none; border-radius:6px; background:var(--blue); color:white; font-weight:bold;" onclick="finalizeSync('${type}')">Submit</button></div>`;
     }
+
     async function finalizeSync(type) {
         const startTime = document.getElementById('start-time-select').value, startAddr = document.getElementById('start-addr').value, endAddr = document.getElementById('end-addr').value;
         document.getElementById('modal-overlay').style.display = 'none';

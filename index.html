@@ -23,15 +23,15 @@
         .view-admin #sidebar { width: 350px; height: 100vh; border-right: 2px solid #ccc; font-size: 0.9em; }
         .view-admin #map-wrapper { flex: 1; height: 100vh; }
 
-        #map-wrapper { position: relative; background-color: #efefef; }
+        #map-wrapper { position: relative; background-color: #efefef; overflow: hidden; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; height: 100%; }
         
-        /* DYNAMIC SELECTION NOTE */
         #selection-note {
             position: absolute; top: 10px; left: 10px; z-index: 150;
-            background: rgba(255, 255, 255, 0.9); padding: 6px 10px;
-            border-radius: 4px; border: 1px solid #ccc; font-size: 11px;
-            color: #444; pointer-events: none; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            background: rgba(255, 255, 255, 0.92); padding: 8px 12px;
+            border-radius: 4px; border: 1px solid #ccc; font-size: 12px;
+            color: #333; pointer-events: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-weight: bold;
         }
 
         .boxdraw { background: rgba(43, 87, 154, 0.2); border: 2px solid var(--blue); position: absolute; top: 0; left: 0; width: 0; height: 0; z-index: 100; pointer-events: none; }
@@ -60,11 +60,16 @@
 
         #controls { display: none; padding: 8px; background: #f1f4f9; border-bottom: 1px solid #ddd; align-items: center; justify-content: center; gap: 8px; }
         
-        /* PIN STYLE */
-        .marker { width: 28px; height: 28px; background: var(--red); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 12px; cursor: pointer; position: relative; }
-        .marker.bulk-selected { background: var(--blue) !important; box-shadow: 0 0 10px var(--blue); }
+        /* PIN FIX: Ensure markers are properly anchored */
+        .marker { 
+            width: 28px; height: 28px; background: var(--red); border-radius: 50%; 
+            display: flex; align-items: center; justify-content: center; 
+            color: white; font-weight: bold; border: 2px solid white; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 12px; cursor: pointer; 
+        }
+        .marker.bulk-selected { background: var(--blue) !important; box-shadow: 0 0 10px var(--blue); transform: scale(1.15); }
         .marker.completed { background: #999; }
-        .marker-warning { position: absolute; top: -10px; right: -10px; font-size: 16px; }
+        .marker-warning { position: absolute; top: -10px; right: -10px; font-size: 16px; pointer-events: none; }
 
         #modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index: 2000; display:none; align-items:center; justify-content:center; }
         .modal-box { background:white; padding:20px; border-radius:12px; width:85%; max-width:340px; text-align: center; }
@@ -101,14 +106,19 @@
     const params = new URLSearchParams(window.location.search), routeId = params.get('id'), driver = params.get('driver'), viewMode = params.get('view') || 'driver';
     document.body.className = `view-${viewMode}`;
 
-    // Dynamic Instruction Logic
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     document.getElementById('selection-note').innerHTML = isMobile ? 
-        "<b>Mobile:</b> Long Press + Drag to select multiple" : 
-        "<b>Desktop:</b> Shift + Drag to select multiple";
+        "Long Press + Drag to select multiple" : 
+        "Shift + Drag to select multiple";
 
     mapboxgl.accessToken = MAPBOX_TOKEN;
-    const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/streets-v12', center: [-96.797, 32.776], zoom: 11 });
+    const map = new mapboxgl.Map({ 
+        container: 'map', 
+        style: 'mapbox://styles/mapbox/streets-v12', 
+        center: [-96.797, 32.776], 
+        zoom: 11,
+        attributionControl: false 
+    });
 
     let stops = [], markers = [], initialBounds = null, selectedIds = new Set();
 
@@ -122,7 +132,6 @@
     }, {passive: true});
     canvas.addEventListener('touchend', () => { clearTimeout(pressTimer); if(!longPressActive) map.dragPan.enable(); });
 
-    // Deselect on empty map click
     map.on('click', (e) => {
         if (e.originalEvent.target.classList.contains('mapboxgl-canvas')) {
             selectedIds.clear();
@@ -233,7 +242,8 @@
             list.appendChild(item);
 
             const el = document.createElement('div');
-            el.className = `marker ${s.status}`; el.innerText = i + 1;
+            el.className = `marker ${s.status}`; 
+            el.innerHTML = `<span>${i + 1}</span>`;
             
             if (isLate) {
                 const warn = document.createElement('div');
@@ -242,6 +252,7 @@
             }
 
             el.onclick = (e) => {
+                e.stopPropagation();
                 if (e.shiftKey) {
                     if (selectedIds.has(s.id)) selectedIds.delete(s.id);
                     else selectedIds.add(s.id);
@@ -253,7 +264,9 @@
                 focusItem(s.id);
             };
 
-            const m = new mapboxgl.Marker(el).setLngLat([s.lng, s.lat]).addTo(map);
+            const m = new mapboxgl.Marker(el)
+                .setLngLat([s.lng, s.lat])
+                .addTo(map);
             m._stopId = s.id; markers.push(m); bounds.extend([s.lng, s.lat]);
         });
         if (stops.length > 0) { initialBounds = bounds; map.fitBounds(bounds, { padding: 50, maxZoom: 15 }); }
@@ -316,7 +329,6 @@
     }
 
     map.on('zoomend', () => { document.getElementById('reset-view-btn').style.display = map.getZoom() > 12 ? 'block' : 'none'; });
-    Sortable.create(document.getElementById('stop-list'), { handle: '.handle', animation: 150, onEnd: () => { document.getElementById('controls').style.display = 'flex'; } });
     loadData();
 </script>
 </body>

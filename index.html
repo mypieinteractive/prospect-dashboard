@@ -21,7 +21,7 @@
         .view-driver #sidebar { height: 65vh; min-height: 65vh; width: 100%; }
 
         body.view-admin { flex-direction: row; }
-        .view-admin #sidebar { width: 450px; height: 100vh; border-right: 2px solid #ccc; }
+        .view-admin #sidebar { width: 480px; height: 100vh; border-right: 2px solid #ccc; }
         .view-admin #map-wrapper { flex: 1; height: 100vh; }
         .view-admin .stop-actions { display: none !important; }
 
@@ -46,7 +46,6 @@
         #sidebar { display: flex; flex-direction: column; background: white; z-index: 10; }
         #search-container { padding: 8px; border-bottom: 1px solid #ddd; }
         #search-input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
-
         #stop-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
         /* TILE UI */
@@ -66,15 +65,23 @@
         .row-details { font-size: 11px; color: #888; }
         
         /* DUE DATE STYLING */
-        .due-date-container { display: flex; align-items: center; padding: 0 10px; font-weight: bold; font-size: 18px; color: #333; }
+        .due-date-container { display: flex; align-items: center; padding: 0 10px; font-weight: bold; font-size: 18px; color: #333; margin-left: auto; }
         .due-date-container.urgent { color: var(--red); }
 
         .stop-actions { display: flex; align-items: center; padding-right: 8px; gap: 4px; }
         .icon-btn { font-size: 28px; cursor: pointer; padding: 4px; }
 
         #controls { display: none; padding: 8px; background: #f1f4f9; border-bottom: 1px solid #ddd; align-items: center; justify-content: center; gap: 10px; flex-wrap: nowrap; }
-        .marker { width: 28px; height: 28px; background: var(--red); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; border: 2px solid white; font-size: 12px; cursor: pointer; position: relative; }
-        .marker.bulk-selected { background: var(--blue) !important; box-shadow: 0 0 10px var(--blue); }
+        
+        /* THE PIN FIX */
+        .marker { 
+            position: absolute !important; /* Critical fix for floating pins */
+            width: 28px; height: 28px; background: var(--red); border-radius: 50%; 
+            display: flex; align-items: center; justify-content: center; 
+            color: white; font-weight: bold; border: 2px solid white; 
+            font-size: 12px; cursor: pointer;
+        }
+        .marker.bulk-selected { background: var(--blue) !important; box-shadow: 0 0 12px var(--blue); transform: scale(1.1); }
         .marker.completed { background: #999; }
         .marker-warning { position: absolute; top: -10px; right: -10px; font-size: 16px; pointer-events: none; }
     </style>
@@ -147,7 +154,7 @@
         if (!box) { box = document.createElement('div'); box.classList.add('boxdraw'); canvas.appendChild(box); }
         const minX = Math.min(start.x, current.x), maxX = Math.max(start.x, current.x);
         const minY = Math.min(start.y, current.y), maxY = Math.max(start.y, current.y);
-        box.style.transform = `translate(${minX}px, ${minY}px)`;
+        box.style.left = minX + 'px'; box.style.top = minY + 'px';
         box.style.width = (maxX - minX) + 'px'; box.style.height = (maxY - minY) + 'px';
     }
     function mouseUp(e) { finishSelection(mousePos(e)); longPressActive = false; }
@@ -220,10 +227,9 @@
                 </div>
             `;
             
-            // TILE MULTI-SELECT LOGIC
             item.onclick = (e) => {
                 if (!e.shiftKey) selectedIds.clear();
-                selectedIds.add(s.id);
+                selectedIds.has(s.id) ? selectedIds.delete(s.id) : selectedIds.add(s.id);
                 updateSelectionUI();
                 focusPin(s.id);
             };
@@ -245,7 +251,9 @@
                 focusTile(s.id);
             };
 
-            const m = new mapboxgl.Marker(el).setLngLat([s.lng, s.lat]).addTo(map);
+            const m = new mapboxgl.Marker({ element: el, anchor: 'center' })
+                .setLngLat([s.lng, s.lat])
+                .addTo(map);
             m._stopId = s.id; markers.push(m); bounds.extend([s.lng, s.lat]);
         });
         if (stops.length > 0) { initialBounds = bounds; map.fitBounds(bounds, { padding: 50, maxZoom: 15 }); }
@@ -273,9 +281,8 @@
         e.stopPropagation();
         const idx = stops.findIndex(s => s.id == id);
         stops[idx].status = (stops[idx].status === 'completed') ? '' : 'completed';
-        render(); drawRoute();
+        render(); drawRoute(); updateSummary();
         
-        // AUTO-SCROLL LOGIC
         if (stops[idx].status === 'completed') {
             const next = document.querySelector('.stop-item:not(.completed)');
             if (next) next.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -285,7 +292,7 @@
     function triggerBulkDelete() {
         if(confirm(`Remove selected orders?`)) {
             selectedIds.forEach(id => { stops.find(s => s.id == id).status = 'cancelled'; });
-            selectedIds.clear(); render(); drawRoute(); updateSelectionUI();
+            selectedIds.clear(); render(); drawRoute(); updateSelectionUI(); updateSummary();
             document.getElementById('controls').style.display = 'flex';
         }
     }
@@ -293,7 +300,7 @@
     function triggerBulkComplete() {
         if(confirm(`Mark selected as completed?`)) {
             selectedIds.forEach(id => { stops.find(s => s.id == id).status = 'completed'; });
-            selectedIds.clear(); render(); drawRoute(); updateSelectionUI();
+            selectedIds.clear(); render(); drawRoute(); updateSelectionUI(); updateSummary();
             document.getElementById('controls').style.display = 'flex';
         }
     }
@@ -341,10 +348,8 @@
 
     map.on('zoomend', () => { document.getElementById('reset-view-btn').style.display = map.getZoom() > 12 ? 'block' : 'none'; });
 
-    // --- SORTABLE INITIALIZATION ---
     Sortable.create(document.getElementById('stop-list'), {
-        handle: '.handle',
-        animation: 150,
+        handle: '.handle', animation: 150,
         onEnd: (evt) => {
             const movedStop = stops.splice(evt.oldIndex, 1)[0];
             stops.splice(evt.newIndex, 0, movedStop);

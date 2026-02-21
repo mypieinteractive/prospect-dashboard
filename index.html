@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>ProSpect | Route Manager</title>
+    <title>ProSpect Dashboard</title>
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
     
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css" rel="stylesheet">
@@ -14,63 +14,52 @@
         :root { --blue: #2b579a; --red: #d93025; --green: #28a745; }
         body { margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; background: #fff; overflow: hidden; }
         
-        /* Map Section */
-        #map { flex: 1; width: 100%; position: relative; z-index: 1; border-bottom: 1px solid #ccc; }
+        /* Fixed Map Visibility */
+        #map-container { flex: 1; width: 100%; position: relative; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
         
-        /* Sidebar Section */
-        #sidebar { height: 55vh; display: flex; flex-direction: column; background: white; z-index: 10; position: relative; }
-        
-        /* Temporary Address Overrides */
-        .address-overrides { padding: 10px; background: #f1f1f1; border-bottom: 1px solid #ddd; display: flex; flex-direction: column; gap: 5px; }
-        .address-overrides input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
-
-        /* Controls */
-        #controls { display: none; padding: 12px; background: #fff; border-bottom: 1px solid #ddd; align-items: center; justify-content: center; gap: 10px; }
-        .status-msg { color: var(--red); font-weight: bold; font-size: 13px; }
-        .btn-action { padding: 10px 15px; border: none; border-radius: 4px; font-weight: bold; color: white; cursor: pointer; font-size: 14px; }
-
-        /* List UI */
+        #sidebar { height: 50vh; display: flex; flex-direction: column; background: white; z-index: 10; border-top: 3px solid #ddd; position: relative; }
         #stop-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-        .stop-item { display: flex; align-items: center; padding: 15px; border-bottom: 1px solid #eee; background: white; transition: background 0.3s; position: relative; touch-action: pan-y; }
-        .stop-item.completed { opacity: 0.5; background: #f9f9f9; }
+
+        .stop-item { display: flex; align-items: center; padding: 12px 15px; border-bottom: 1px solid #eee; background: white; transition: background 0.3s; position: relative; touch-action: pan-y; }
+        .stop-item.completed { opacity: 0.5; background: #f0f0f0; }
         .stop-item.highlight { background: #fff9c4 !important; }
         
-        .handle { padding: 10px 15px; color: #ccc; cursor: grab; font-size: 24px; }
-        .stop-content { flex: 1; font-size: 14px; }
-        .check-icon { font-size: 40px; color: var(--green); margin-left: 10px; cursor: pointer; padding: 5px; }
+        .handle { padding: 10px; color: #ccc; cursor: grab; font-size: 20px; }
+        .stop-content { flex: 1; }
+        .icon-btn { font-size: 28px; padding: 8px; cursor: pointer; }
+        .check-icon { color: var(--green); }
+        .nav-icon { color: var(--blue); margin-left: 5px; }
         
-        /* Numbered Pins */
-        .marker { width: 34px; height: 34px; background: var(--red); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 15px; }
+        #controls { display: none; padding: 12px; background: #f8f9fa; border-bottom: 1px solid #ddd; align-items: center; justify-content: center; gap: 10px; }
+        .status-msg { color: var(--red); font-weight: bold; font-size: 13px; }
+        .btn-action { padding: 8px 15px; border: none; border-radius: 4px; font-weight: bold; color: white; cursor: pointer; }
+
+        .marker { width: 32px; height: 32px; background: var(--red); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; cursor: pointer; }
         .marker.completed { background: #999; }
 
-        /* Modals */
-        #loader { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); display: none; }
-        #modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index: 2000; display:none; align-items:center; justify-content:center; }
+        #modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index: 2000; display:none; align-items:center; justify-content:center; }
+        .modal-box { background:white; padding:20px; border-radius:12px; width:85%; max-width:340px; }
+        select, input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
     </style>
 </head>
 <body>
 
-<div id="map"><div id="loader">Loading...</div></div>
+<div id="map-container">
+    <div id="map"></div>
+</div>
 
 <div id="sidebar">
-    <div class="address-overrides">
-        <input type="text" id="start-node" placeholder="Temporary Start Address" onchange="showControls()">
-        <input type="text" id="end-node" placeholder="Temporary End Address" onchange="showControls()">
-    </div>
     <div id="controls">
         <span class="status-msg">Changes made</span>
-        <button class="btn-action" style="background:var(--blue)" onclick="triggerSync('optimize')">Re-Optimize</button>
-        <button class="btn-action" style="background:#444" onclick="triggerSync('calculate')">Re-Calculate</button>
+        <button class="btn-action" style="background:var(--blue)" onclick="showSyncOptions('optimize')">Re-Optimize</button>
+        <button class="btn-action" style="background:#444" onclick="showSyncOptions('calculate')">Re-Calculate</button>
     </div>
     <div id="stop-list"></div>
 </div>
 
 <div id="modal-overlay">
-    <div style="background:white; padding:25px; border-radius:12px; width:85%; max-width:320px; text-align:center;">
-        <h3 id="modal-title">Confirm</h3>
-        <p id="modal-body"></p>
-        <div style="display:flex; gap:10px; margin-top:20px;" id="modal-btns"></div>
-    </div>
+    <div class="modal-box" id="modal-content"></div>
 </div>
 
 <script>
@@ -91,17 +80,14 @@
 
     let stops = [];
     let markers = [];
-    let currentDeleteId = null;
 
     async function loadData() {
         if (!routeId) return;
-        showLoader("Loading...");
         try {
             const res = await fetch(`${WEB_APP_URL}?id=${routeId}`);
             stops = await res.json();
             render();
-        } catch (e) { console.error(e); }
-        showLoader(null);
+        } catch (e) { console.error("Data load failed", e); }
     }
 
     function render() {
@@ -117,37 +103,42 @@
             item.id = `item-${s.id}`;
             item.innerHTML = `
                 <div class="handle">☰</div>
-                <div class="stop-content" onclick="openNativeNav('${s.lat}','${s.lng}')">
-                    <b style="font-size:16px;">${i + 1}. ${s.address.split(',')[0]}</b><br>
-                    <small>${s.eta} | ${s.dist}</small><br>
-                    <small style="color:#888;">${s.client}</small>
+                <div class="stop-content" onclick="focusItem('${s.id}')">
+                    <b>${i + 1}. ${s.address.split(',')[0]}</b><br>
+                    <small>${s.eta} | ${s.dist}</small>
                 </div>
-                <i class="fa-solid fa-circle-check check-icon" onclick="completeStop('${s.id}')"></i>
+                <i class="fa-solid fa-circle-check icon-btn check-icon" onclick="toggleComplete('${s.id}')"></i>
+                <i class="fa-solid fa-location-arrow icon-btn nav-icon" onclick="openNav('${s.lat}','${s.lng}')"></i>
             `;
             
-            // Swipe Left to Delete
             let startX = 0;
             item.addEventListener('touchstart', (e) => startX = e.touches[0].clientX);
             item.addEventListener('touchend', (e) => {
-                if (startX - e.changedTouches[0].clientX > 80) {
-                    confirmDelete(s.id);
-                }
+                if (startX - e.changedTouches[0].clientX > 80) triggerDelete(s.id);
             });
 
             list.appendChild(item);
 
-            // Numbered Marker
             const el = document.createElement('div');
             el.className = `marker ${s.status}`;
             el.innerText = i + 1;
-            el.onclick = (e) => { e.stopPropagation(); focusItem(s.id); };
-
+            el.onclick = () => focusItem(s.id);
             const m = new mapboxgl.Marker(el).setLngLat([s.lng, s.lat]).addTo(map);
             markers.push(m);
             bounds.extend([s.lng, s.lat]);
         });
+        if (stops.length > 0) map.fitBounds(bounds, { padding: 50, maxZoom: 15 });
+    }
 
-        if (stops.length > 0) map.fitBounds(bounds, { padding: 60, maxZoom: 15 });
+    function toggleComplete(id) {
+        const idx = stops.findIndex(s => s.id == id);
+        const isUnchecking = (stops[idx].status === 'completed');
+        stops[idx].status = isUnchecking ? '' : 'completed';
+        render();
+        if (!isUnchecking) {
+            const next = document.querySelectorAll('.stop-item:not(.completed)')[0];
+            if (next) next.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
     }
 
     function focusItem(id) {
@@ -155,104 +146,83 @@
         const el = document.getElementById(`item-${id}`);
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         el.classList.add('highlight');
-        setTimeout(() => el.classList.remove('highlight'), 2000);
+        setTimeout(() => el.classList.remove('highlight'), 1500);
         map.flyTo({ center: [stop.lng, stop.lat], zoom: 16 });
     }
 
-    function completeStop(id) {
-        const idx = stops.findIndex(s => s.id == id);
-        stops[idx].status = 'completed';
-        render();
+    // --- NAVIGATION PREFERENCE ---
+    function openNav(lat, lng) {
+        let pref = localStorage.getItem('navPref');
+        if (!pref) {
+            if(confirm("Use Google Maps? (Cancel for Apple Maps)")) {
+                localStorage.setItem('navPref', 'google');
+                pref = 'google';
+            } else {
+                localStorage.setItem('navPref', 'apple');
+                pref = 'apple';
+            }
+        }
+        const url = pref === 'google' 
+            ? `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving` 
+            : `maps://maps.apple.com/?daddr=${lat},${lng}`;
+        window.location.href = url;
+    }
+
+    // --- SYNC & OPTIONS ---
+    function showSyncOptions(type) {
+        const modal = document.getElementById('modal-overlay');
+        const content = document.getElementById('modal-content');
+        modal.style.display = 'flex';
         
-        // Scroll next active stop to top
-        const active = document.querySelectorAll('.stop-item:not(.completed)');
-        if (active.length > 0) active[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
+        let timeOptions = '';
+        for(let h=6; h<=18; h++){
+            let hr = h > 12 ? h-12 : h;
+            let ampm = h >= 12 ? 'PM' : 'AM';
+            timeOptions += `<option value="${hr}:00 ${ampm}">${hr}:00 ${ampm}</option>`;
+            timeOptions += `<option value="${hr}:30 ${ampm}">${hr}:30 ${ampm}</option>`;
+        }
+
+        content.innerHTML = `
+            <h3>${type === 'optimize' ? 'Re-Optimize' : 'Re-Calculate'}</h3>
+            <label>Start Time:</label>
+            <select id="start-time-select">${timeOptions}</select>
+            <label>Start Address:</label>
+            <input type="text" id="start-addr" placeholder="Current location or address">
+            <label>End Address:</label>
+            <input type="text" id="end-addr" placeholder="Default or custom address">
+            <div style="display:flex; gap:10px; margin-top:15px;">
+                <button onclick="document.getElementById('modal-overlay').style.display='none'" style="flex:1; padding:10px; border:none; border-radius:5px;">Cancel</button>
+                <button onclick="finalizeSync('${type}')" style="flex:1; padding:10px; border:none; border-radius:5px; background:var(--blue); color:white;">Submit</button>
+            </div>
+        `;
     }
 
-    function confirmDelete(id) {
-        currentDeleteId = id;
-        showModal("Delete Order?", "Are you sure you want to delete this order from the route?", [
-            { text: "Cancel", cb: () => showModal(null) },
-            { text: "Delete", color: "var(--red)", cb: () => {
-                stops.find(s => s.id == currentDeleteId).status = 'cancelled';
-                showModal(null);
-                render();
-                showControls();
-            }}
-        ]);
-    }
-
-    async function triggerSync(action) {
-        const text = action === 'optimize' ? 'Re-optimizing' : 'Re-calculating';
-        showModal("Start Time", "Choose a starting point for ETAs:", [
-            { text: "8:00 AM", cb: () => finalizeSync(action, "8:00 AM", text) },
-            { text: "Current", cb: () => finalizeSync(action, new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), text) },
-            { text: "Custom", cb: () => finalizeSync(action, prompt("Enter time (e.g. 10:30 AM)"), text) }
-        ]);
-    }
-
-    async function finalizeSync(action, startTime, msg) {
-        showModal(null);
-        showLoader(msg + "...");
+    async function finalizeSync(type) {
+        const startTime = document.getElementById('start-time-select').value;
+        document.getElementById('modal-overlay').style.display = 'none';
+        
         try {
             const res = await fetch(WEB_APP_URL, {
                 method: 'POST',
-                body: JSON.stringify({ action, routeId, driver, stops, startTime, startAddr: document.getElementById('start-node').value, endAddr: document.getElementById('end-node').value })
+                body: JSON.stringify({ action: type, routeId, driver, stops, startTime })
             });
             const data = await res.json();
             stops = data.updatedStops;
             document.getElementById('controls').style.display = 'none';
             render();
-        } catch (e) { alert("Sync failed."); }
-        showLoader(null);
+        } catch (e) { alert("Sync Failed. Please check internet connection."); }
     }
 
-    function openNativeNav(lat, lng) {
-        const url = (navigator.platform.indexOf('iPhone') != -1) 
-            ? `maps://maps.apple.com/?daddr=${lat},${lng}` 
-            : `google.navigation:q=${lat},${lng}`;
-        window.location.href = url;
-    }
-
-    function showControls() {
-        document.getElementById('controls').style.display = 'flex';
-    }
-
-    function showLoader(text) {
-        const l = document.getElementById('loader');
-        l.style.display = text ? 'block' : 'none';
-        if (text) l.innerText = text;
-    }
-
-    function showModal(title, body, btns) {
-        const m = document.getElementById('modal-overlay');
-        if (!title) { m.style.display = 'none'; return; }
-        document.getElementById('modal-title').innerText = title;
-        document.getElementById('modal-body').innerText = body;
-        const btnBox = document.getElementById('modal-btns');
-        btnBox.innerHTML = '';
-        btns.forEach(b => {
-            const btn = document.createElement('button');
-            btn.innerText = b.text;
-            btn.style.flex = "1";
-            btn.style.padding = "12px";
-            btn.style.border = "none";
-            btn.style.borderRadius = "6px";
-            btn.style.background = b.color || "#eee";
-            btn.style.color = b.color ? "white" : "black";
-            btn.style.fontWeight = "bold";
-            btn.onclick = b.cb;
-            btnBox.appendChild(btn);
-        });
-        m.style.display = 'flex';
+    function triggerDelete(id) {
+        if(confirm("Are you sure you want to delete this order from the route?")) {
+            stops.find(s => s.id == id).status = 'cancelled';
+            render();
+            document.getElementById('controls').style.display = 'flex';
+        }
     }
 
     Sortable.create(document.getElementById('stop-list'), {
-        handle: '.handle',
-        animation: 150,
-        delay: 100,
-        delayOnTouchOnly: true,
-        onEnd: showControls
+        handle: '.handle', animation: 150, onEnd: () => document.getElementById('controls').style.display = 'flex'
     });
 
     loadData();

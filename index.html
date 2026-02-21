@@ -13,25 +13,24 @@
     <style>
         :root { --blue: #2b579a; --fade-blue: #eef2f9; --red: #d93025; --green: #28a745; --purple: #6C5C99; }
         * { box-sizing: border-box; font-family: Calibri, 'Candara', 'Segoe UI', sans-serif; }
-        
         body { margin: 0; padding: 0; height: 100vh; width: 100vw; display: flex; background: #fff; overflow: hidden; }
         
-        /* DRIVER VIEW (DEFAULT) */
+        /* SEARCH BAR */
+        #search-container { padding: 8px; background: #fff; border-bottom: 1px solid #ddd; }
+        #search-input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+
+        /* VIEWS */
         body.view-driver { flex-direction: column; }
         .view-driver #map-wrapper { height: 40vh; min-height: 40vh; width: 100%; border-bottom: 2px solid #ccc; }
         .view-driver #sidebar { height: 60vh; min-height: 60vh; width: 100%; }
 
-        /* ADMIN VIEW (Horizontal Split) */
         body.view-admin { flex-direction: row; }
         .view-admin #sidebar { width: 350px; height: 100vh; border-right: 2px solid #ccc; font-size: 0.9em; }
         .view-admin #map-wrapper { flex: 1; height: 100vh; }
-        .view-admin .stop-content b { font-size: 14px; }
-        .view-admin .row-meta, .view-admin .row-details { font-size: 11px; }
 
         #map-wrapper { position: relative; background-color: #efefef; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; height: 100%; }
         
-        /* Reset View Button */
         #reset-view-btn { 
             position: absolute; top: 15px; left: 50%; transform: translateX(-50%); 
             z-index: 50; background: white; border: 1px solid #ccc; border-radius: 20px;
@@ -42,8 +41,7 @@
         #sidebar { display: flex; flex-direction: column; background: white; z-index: 10; }
         #stop-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
-        /* COMPACT TILE STRUCTURE */
-        .stop-item { display: flex; align-items: stretch; border-bottom: 1px solid #eee; background: white; min-height: 62px; transition: background 0.2s; }
+        .stop-item { display: flex; align-items: stretch; border-bottom: 1px solid #eee; background: white; min-height: 62px; }
         .stop-item.completed { opacity: 0.5; background: #f9f9f9; }
         .stop-item.selected { background: var(--fade-blue) !important; }
 
@@ -53,7 +51,7 @@
         .csv-box { 
             align-self: center; width: 26px; height: 26px; border: 1.5px solid var(--blue); 
             color: var(--blue); display: flex; align-items: center; justify-content: center; 
-            font-weight: bold; font-size: 9px; border-radius: 4px; margin: 0 6px; pointer-events: none; 
+            font-weight: bold; font-size: 9px; border-radius: 4px; margin: 0 6px; 
         }
 
         .stop-content { flex: 1; padding: 4px 0; display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
@@ -62,24 +60,28 @@
         .row-details { font-size: 11px; color: #888; margin-top: 1px; }
         .due-warning { color: var(--red); font-weight: bold; }
 
-        /* ACTIONS & CONTEXTUAL DELETE */
-        .stop-actions { display: flex; align-items: center; padding-right: 8px; gap: 2px; }
-        .icon-btn { font-size: 24px; cursor: pointer; padding: 4px; border-radius: 4px; }
-        .icon-btn:active { background: #ddd; }
+        .stop-actions { display: flex; align-items: center; padding-right: 8px; gap: 4px; }
+        .icon-btn { font-size: 24px; cursor: pointer; padding: 4px; }
         .check-icon { color: var(--green); }
         .nav-icon { color: var(--blue); }
-        .delete-icon { color: var(--red); display: none; } /* Hidden by default */
-        .selected .delete-icon { display: block; } /* Show when highlighted */
+        .more-icon { color: #888; }
+
+        /* CONTEXT MENU */
+        #context-menu { 
+            position: fixed; background: white; border: 1px solid #ccc; box-shadow: 0 2px 10px rgba(0,0,0,0.2); 
+            z-index: 3000; border-radius: 6px; display: none; overflow: hidden;
+        }
+        .context-item { padding: 12px 20px; font-weight: bold; cursor: pointer; color: var(--red); font-size: 14px; }
+        .context-item:hover { background: #f5f5f5; }
 
         #controls { display: none; padding: 8px; background: #f1f4f9; border-bottom: 1px solid #ddd; align-items: center; justify-content: center; gap: 8px; }
         .marker { width: 28px; height: 28px; background: var(--red); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 12px; cursor: pointer; }
-        .marker.completed { background: #999; }
         
         #modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index: 2000; display:none; align-items:center; justify-content:center; }
         .modal-box { background:white; padding:20px; border-radius:12px; width:85%; max-width:340px; text-align: center; }
     </style>
 </head>
-<body class="view-driver">
+<body class="view-driver" onclick="hideContextMenu()">
 
 <div id="map-wrapper">
     <button id="reset-view-btn" onclick="resetMapView()">Reset View</button>
@@ -87,12 +89,19 @@
 </div>
 
 <div id="sidebar">
+    <div id="search-container">
+        <input type="text" id="search-input" placeholder="Search address or client..." onkeyup="filterList()">
+    </div>
     <div id="controls">
         <span style="color:var(--red); font-weight:bold; font-size:13px;">Changes made</span>
         <button onclick="showSyncOptions('optimize')" style="background:var(--blue); color:white; padding:6px 14px; border:none; border-radius:4px; font-weight:bold; font-size:12px;">Re-Optimize</button>
         <button onclick="showSyncOptions('calculate')" style="background:#444; color:white; padding:6px 14px; border:none; border-radius:4px; font-weight:bold; font-size:12px;">Re-Calculate</button>
     </div>
     <div id="stop-list"></div>
+</div>
+
+<div id="context-menu">
+    <div class="context-item" id="context-delete-btn">Delete Order</div>
 </div>
 
 <div id="modal-overlay"><div class="modal-box" id="modal-content"></div></div>
@@ -111,16 +120,14 @@
         container: 'map',
         style: 'mapbox://styles/mapbox/streets-v12',
         center: [-96.797, 32.776],
-        zoom: 11,
-        trackResize: true
+        zoom: 11
     });
 
     let stops = [], markers = [], initialBounds = null;
 
     map.on('zoomend', () => {
         const resetBtn = document.getElementById('reset-view-btn');
-        if (map.getZoom() > 12) resetBtn.style.display = 'block';
-        else resetBtn.style.display = 'none';
+        resetBtn.style.display = map.getZoom() > 12 ? 'block' : 'none';
     });
 
     async function loadData() {
@@ -142,6 +149,7 @@
             const item = document.createElement('div');
             item.className = `stop-item ${s.status}`;
             item.id = `item-${s.id}`;
+            item.setAttribute('data-search', `${s.address} ${s.client}`.toLowerCase());
             
             const due = s.dueDate ? new Date(s.dueDate) : null;
             const isLate = (due && due <= new Date());
@@ -158,15 +166,23 @@
                     <div class="row-details">${dueHtml} | ${s.type}</div>
                 </div>
                 <div class="stop-actions">
-                    <i class="fa-solid fa-trash-can icon-btn delete-icon" onclick="triggerDelete('${s.id}')"></i>
                     <i class="fa-solid fa-circle-check icon-btn check-icon" onclick="toggleComplete('${s.id}')"></i>
                     <i class="fa-solid fa-location-arrow icon-btn nav-icon" onclick="openNav('${s.lat}','${s.lng}')"></i>
+                    <i class="fa-solid fa-ellipsis-vertical icon-btn more-icon" onclick="showActionMenu(event, '${s.id}')"></i>
                 </div>
             `;
             list.appendChild(item);
 
             const el = document.createElement('div');
             el.className = `marker ${s.status}`; el.innerText = i + 1;
+            
+            // Map Context Menu Logic
+            el.addEventListener('contextmenu', (e) => { e.preventDefault(); showActionMenu(e, s.id); });
+            
+            let pressTimer;
+            el.addEventListener('touchstart', (e) => { pressTimer = window.setTimeout(() => showActionMenu(e.touches[0], s.id), 700); });
+            el.addEventListener('touchend', () => clearTimeout(pressTimer));
+            
             el.onclick = () => focusItem(s.id);
             const m = new mapboxgl.Marker(el).setLngLat([s.lng, s.lat]).addTo(map);
             markers.push(m); bounds.extend([s.lng, s.lat]);
@@ -175,6 +191,32 @@
             initialBounds = bounds;
             map.fitBounds(bounds, { padding: 50, maxZoom: 15 });
         }
+    }
+
+    function filterList() {
+        const query = document.getElementById('search-input').value.toLowerCase();
+        document.querySelectorAll('.stop-item').forEach(el => {
+            el.style.display = el.getAttribute('data-search').includes(query) ? 'flex' : 'none';
+        });
+    }
+
+    function showActionMenu(e, id) {
+        e.stopPropagation();
+        const menu = document.getElementById('context-menu');
+        const btn = document.getElementById('context-delete-btn');
+        
+        const x = e.clientX || e.pageX;
+        const y = e.clientY || e.pageY;
+
+        menu.style.left = `${x - 100}px`;
+        menu.style.top = `${y}px`;
+        menu.style.display = 'block';
+
+        btn.onclick = () => { triggerDelete(id); hideContextMenu(); };
+    }
+
+    function hideContextMenu() {
+        document.getElementById('context-menu').style.display = 'none';
     }
 
     function drawRoute() {
@@ -188,9 +230,7 @@
         }
     }
 
-    function resetMapView() {
-        if (initialBounds) map.fitBounds(initialBounds, { padding: 50, maxZoom: 15 });
-    }
+    function resetMapView() { if (initialBounds) map.fitBounds(initialBounds, { padding: 50, maxZoom: 15 }); }
 
     function focusItem(id) {
         document.querySelectorAll('.stop-item').forEach(el => el.classList.remove('selected'));
@@ -205,6 +245,10 @@
         const idx = stops.findIndex(s => s.id == id);
         stops[idx].status = (stops[idx].status === 'completed') ? '' : 'completed';
         render(); drawRoute();
+    }
+
+    function triggerDelete(id) {
+        if(confirm("Delete this order?")) { stops.find(s => s.id == id).status = 'cancelled'; render(); drawRoute(); document.getElementById('controls').style.display = 'flex'; }
     }
 
     function openNav(lat, lng) {
@@ -227,7 +271,7 @@
         let tOpt = '';
         for(let h=6; h<=18; h++){ let hr = h>12?h-12:h; let ap = h>=12?'PM':'AM'; tOpt += `<option value="${hr}:00 ${ap}">${hr}:00 ${ap}</option><option value="${hr}:30 ${ap}">${hr}:30 ${ap}</option>`; }
         const defS = stops.length ? stops[0].address : "", defE = stops.length ? stops[stops.length-1].address : "";
-        document.getElementById('modal-content').innerHTML = `<h3 style="margin:0">Update Route</h3><select id="start-time-select" style="width:100%; padding:8px; margin:5px 0;">${tOpt}</select><input type="text" id="start-addr" value="${defS}" style="width:100%; padding:8px; margin:5px 0;"><input type="text" id="end-addr" value="${defE}" style="width:100%; padding:8px; margin:5px 0;"><div style="display:flex; gap:10px; margin-top:15px;"><button style="flex:1; padding:10px; border:none; border-radius:6px;" onclick="document.getElementById('modal-overlay').style.display='none'">Cancel</button><button style="flex:1; padding:10px; border:none; border-radius:6px; background:var(--blue); color:white; font-weight:bold;" onclick="finalizeSync('${type}')">Submit</button></div>`;
+        document.getElementById('modal-content').innerHTML = `<h3 style="margin-top:0">Update Route</h3><select id="start-time-select" style="width:100%; padding:8px; margin:5px 0;">${tOpt}</select><input type="text" id="start-addr" value="${defS}" style="width:100%; padding:8px; margin:5px 0;"><input type="text" id="end-addr" value="${defE}" style="width:100%; padding:8px; margin:5px 0;"><div style="display:flex; gap:10px; margin-top:20px;"><button style="flex:1; padding:10px; border:none; border-radius:6px;" onclick="document.getElementById('modal-overlay').style.display='none'">Cancel</button><button style="flex:1; padding:10px; border:none; border-radius:6px; background:var(--blue); color:white; font-weight:bold;" onclick="finalizeSync('${type}')">Submit</button></div>`;
     }
 
     async function finalizeSync(type) {
@@ -240,10 +284,6 @@
             const data = await res.json(); stops = data.updatedStops;
             document.getElementById('controls').style.display = 'none'; render(); drawRoute();
         } catch (e) { alert("Sync Failed."); }
-    }
-
-    function triggerDelete(id) {
-        if(confirm("Delete this order?")) { stops.find(s => s.id == id).status = 'cancelled'; render(); drawRoute(); document.getElementById('controls').style.display = 'flex'; }
     }
 
     Sortable.create(document.getElementById('stop-list'), { handle: '.handle', animation: 150, onEnd: () => { document.getElementById('controls').style.display = 'flex'; } });

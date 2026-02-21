@@ -10,24 +10,34 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         :root { --blue: #2b579a; --red: #d93025; --green: #28a745; }
-        body { margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; background: #fff; }
+        body { margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; background: #fff; overflow: hidden; }
         #map { flex: 1; position: relative; width: 100%; z-index: 1; }
-        #sidebar { height: 50vh; display: flex; flex-direction: column; background: white; z-index: 10; border-top: 3px solid #ddd; }
+        #sidebar { height: 50vh; display: flex; flex-direction: column; background: white; z-index: 10; border-top: 3px solid #ddd; position: relative; }
         
-        /* List & Swipe */
-        .stop-item { display: flex; align-items: center; padding: 15px; border-bottom: 1px solid #eee; background: white; transition: transform 0.3s; position: relative; touch-action: pan-y; }
-        .stop-item.completed { background: #f0f0f0; opacity: 0.6; }
-        .swipe-delete { position: absolute; right: -100px; background: var(--red); color: white; height: 100%; width: 100px; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        /* List UI */
+        #stop-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        .stop-item { display: flex; align-items: center; padding: 15px; border-bottom: 1px solid #eee; background: white; transition: background 0.3s; position: relative; }
+        .stop-item.completed { opacity: 0.5; background: #f0f0f0; }
+        .stop-item.highlight { background: #fff9c4 !important; }
         
-        /* Icons & UI */
-        .check-icon { font-size: 28px; color: var(--green); margin-left: 15px; }
-        .handle { padding: 15px; color: #ccc; cursor: grab; }
-        .status-msg { color: var(--red); font-weight: bold; font-size: 12px; display: none; margin-left: 10px; }
-        .controls { display: none; padding: 10px; background: #eee; gap: 10px; align-items: center; }
+        .handle { padding: 15px; color: #ccc; cursor: grab; font-size: 20px; }
+        .stop-content { flex: 1; }
+        .check-icon { font-size: 32px; color: var(--green); margin-left: 15px; cursor: pointer; }
         
-        /* Numbered Pins */
-        .marker { width: 30px; height: 30px; background: var(--red); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+        /* Controls */
+        .controls { display: none; padding: 12px; background: #f8f9fa; border-bottom: 1px solid #ddd; align-items: center; justify-content: center; gap: 10px; }
+        .status-msg { color: var(--red); font-weight: bold; font-size: 13px; margin-right: 5px; }
+        button { padding: 8px 15px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 14px; }
+        .btn-opt { background: var(--blue); color: white; }
+        .btn-calc { background: #444; color: white; }
+
+        /* Custom Numbered Pins */
+        .marker { width: 32px; height: 32px; background: var(--red); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; cursor: pointer; }
         .marker.completed { background: #999; }
+
+        /* Deletion Popup */
+        #delete-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index: 1000; display:none; align-items:center; justify-content:center; }
+        .modal { background:white; padding:20px; border-radius:8px; width:80%; max-width:300px; text-align:center; }
     </style>
 </head>
 <body>
@@ -36,11 +46,19 @@
 
 <div id="sidebar">
     <div id="controls" class="controls">
-        <span class="status-msg" id="change-alert">Changes made</span>
+        <span class="status-msg">Changes made</span>
         <button class="btn-opt" onclick="triggerSync('optimize')">Re-Optimize</button>
         <button class="btn-calc" onclick="triggerSync('calculate')">Re-Calculate</button>
     </div>
     <div id="stop-list"></div>
+</div>
+
+<div id="delete-overlay">
+    <div class="modal">
+        <p>Are you sure you want to delete this order from the route?</p>
+        <button onclick="confirmDelete(true)" style="background:var(--red); color:white;">Delete</button>
+        <button onclick="confirmDelete(false)" style="background:#eee;">Cancel</button>
+    </div>
 </div>
 
 <script>
@@ -52,104 +70,115 @@
     const driver = params.get('driver');
 
     mapboxgl.accessToken = MAPBOX_TOKEN;
-    const map = new mapboxgl.Map({
-        container: 'map',
-        style: 'mapbox://styles/mapbox/streets-v11',
-        center: [-96.797, 32.776],
-        zoom: 11
-    });
+    const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/streets-v11', center: [-96.797, 32.776], zoom: 11 });
 
     let stops = [];
     let markers = [];
+    let deleteId = null;
 
-    // --- RENDER LOGIC ---
+    async function loadData() {
+        const res = await fetch(`${WEB_APP_URL}?id=${routeId}`);
+        stops = await res.json();
+        render();
+    }
+
     function render() {
         const list = document.getElementById('stop-list');
         list.innerHTML = '';
         markers.forEach(m => m.remove());
         markers = [];
+        const bounds = new mapboxgl.LngLatBounds();
 
-        stops.forEach((s, i) => {
-            if (s.status === 'cancelled') return;
-
-            // 1. Sidebar Item
+        stops.filter(s => s.status !== 'cancelled').forEach((s, i) => {
+            // Sidebar List
             const item = document.createElement('div');
             item.className = `stop-item ${s.status}`;
-            item.id = `stop-${s.id}`;
+            item.id = `item-${s.id}`;
             item.innerHTML = `
                 <div class="handle">☰</div>
-                <div style="flex:1" onclick="openNav('${s.lat}','${s.lng}')">
+                <div class="stop-content" onclick="focusItem('${s.id}')">
                     <b>${i + 1}. ${s.address.split(',')[0]}</b><br>
                     <small>${s.eta} | ${s.dist}</small>
                 </div>
                 <i class="fa-solid fa-circle-check check-icon" onclick="completeStop('${s.id}')"></i>
             `;
+            
+            // Swipe to delete logic
+            let startX = 0;
+            item.ontouchstart = (e) => startX = e.touches[0].clientX;
+            item.ontouchend = (e) => {
+                if (startX - e.changedTouches[0].clientX > 70) { deleteId = s.id; document.getElementById('delete-overlay').style.display='flex'; }
+            };
+
             list.appendChild(item);
 
-            // 2. Custom Numbered Pin
+            // Numbered Pin
             const el = document.createElement('div');
             el.className = `marker ${s.status}`;
             el.innerText = i + 1;
-            el.onclick = () => { focusItem(s.id); };
+            el.onclick = () => focusItem(s.id);
 
-            const marker = new mapboxgl.Marker(el)
-                .setLngLat([s.lng, s.lat])
-                .addTo(map);
-            markers.push(marker);
+            const m = new mapboxgl.Marker(el).setLngLat([s.lng, s.lat]).setPopup(new mapboxgl.Popup().setHTML(`
+                <b>Stop ${i+1}</b><br>${s.address}<br>
+                <a href="geo:${s.lat},${s.lng}" style="display:block; background:var(--blue); color:white; text-align:center; padding:5px; margin-top:5px; border-radius:4px; text-decoration:none;">Navigate</a>
+            `)).addTo(map);
+            markers.push(m);
+            bounds.extend([s.lng, s.lat]);
         });
+        if (stops.length > 0) map.fitBounds(bounds, { padding: 50, maxZoom: 14 });
     }
 
-    // --- GESTURES & ACTIONS ---
+    function focusItem(id) {
+        const el = document.getElementById(`item-${id}`);
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        el.classList.add('highlight');
+        setTimeout(() => el.classList.remove('highlight'), 2000);
+        const stop = stops.find(s => s.id == id);
+        map.flyTo({ center: [stop.lng, stop.lat], zoom: 15 });
+    }
+
     function completeStop(id) {
         const idx = stops.findIndex(s => s.id == id);
         stops[idx].status = 'completed';
         render();
-        // Scroll next stop to top
-        const next = document.getElementById(`stop-${stops[idx+1]?.id}`);
-        if(next) next.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const next = document.querySelectorAll('.stop-item')[idx + 1];
+        if (next) next.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
-    function openNav(lat, lng) {
-        // Fix for invalid address: Use coordinates directly
-        window.location.href = `maps://maps.apple.com/?daddr=${lat},${lng}`;
+    function confirmDelete(confirm) {
+        document.getElementById('delete-overlay').style.display = 'none';
+        if (confirm) { 
+            const idx = stops.findIndex(s => s.id == deleteId);
+            stops[idx].status = 'cancelled';
+            render();
+            showControls();
+        }
     }
 
-    function focusItem(id) {
-        const el = document.getElementById(`stop-${id}`);
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        el.style.background = "#fff9c4";
-        setTimeout(() => { el.style.background = "white"; }, 2000);
-    }
+    async function triggerSync(action) {
+        let start = "8:00 AM";
+        const choice = prompt("Start Time: (1) Default 8AM, (2) Current Time, (3) Custom");
+        if(choice === "2") start = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        if(choice === "3") start = prompt("Enter time (e.g. 9:30 AM)");
 
-    // --- SYNC ---
-    async function triggerSync(type) {
-        let startTime = "8:00 AM";
-        const choice = prompt("Use (1) Default 8AM, (2) Current Time, or (3) Custom?");
-        if(choice === "2") startTime = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-        if(choice === "3") startTime = prompt("Enter time (e.g. 10:30 AM)");
-
-        document.getElementById('change-alert').innerText = action === 'optimize' ? "Re-optimizing..." : "Re-calculating...";
+        document.getElementById('controls').innerHTML = `<span class="status-msg">${action === 'optimize' ? 'Re-optimizing...' : 'Re-calculating...'}</span>`;
         
         const res = await fetch(WEB_APP_URL, {
             method: 'POST',
-            body: JSON.stringify({ action: type, routeId, stops, startTime })
+            body: JSON.stringify({ action, routeId, driver, stops, startTime: start })
         });
         const data = await res.json();
         stops = data.updatedStops;
+        document.getElementById('controls').style.display = 'none';
         render();
     }
 
-    // Sortable Init
-    Sortable.create(document.getElementById('stop-list'), {
-        handle: '.handle',
-        onEnd: () => { 
-            document.getElementById('controls').style.display = 'flex';
-            document.getElementById('change-alert').style.display = 'inline';
-        }
-    });
+    function showControls() {
+        document.getElementById('controls').style.display = 'flex';
+    }
 
-    // Initial Load
-    fetch(`${WEB_APP_URL}?id=${routeId}`).then(r => r.json()).then(d => { stops = d; render(); });
+    Sortable.create(document.getElementById('stop-list'), { handle: '.handle', animation: 150, onEnd: showControls });
+    loadData();
 </script>
 </body>
 </html>

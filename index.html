@@ -13,67 +13,50 @@
     <style>
         :root { --blue: #2b579a; --red: #d93025; --green: #28a745; }
         body { margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; background: #fff; overflow: hidden; }
-        
-        /* Map Section */
-        #map { flex: 1; width: 100%; position: relative; z-index: 1; }
-        
-        /* Sidebar Section */
-        #sidebar { height: 50vh; display: flex; flex-direction: column; background: white; z-index: 10; border-top: 3px solid #ddd; position: relative; }
+        #map { flex: 1; width: 100%; position: relative; z-index: 1; border-bottom: 1px solid #ccc; }
+        #sidebar { height: 50vh; display: flex; flex-direction: column; background: white; z-index: 10; position: relative; }
         #stop-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-
-        /* Stop Items */
-        .stop-item { display: flex; align-items: center; padding: 15px; border-bottom: 1px solid #eee; background: white; transition: background 0.3s, transform 0.2s; position: relative; touch-action: pan-y; }
-        .stop-item.completed { opacity: 0.5; background: #f0f0f0; }
+        .stop-item { display: flex; align-items: center; padding: 15px; border-bottom: 1px solid #eee; background: white; transition: background 0.3s; position: relative; touch-action: pan-y; }
+        .stop-item.completed { opacity: 0.5; background: #f9f9f9; }
         .stop-item.highlight { background: #fff9c4 !important; }
-        
-        .handle { padding: 15px; color: #ccc; cursor: grab; font-size: 22px; }
-        .stop-content { flex: 1; }
-        .check-icon { font-size: 38px; color: var(--green); margin-left: 15px; cursor: pointer; padding: 5px; }
-        
-        /* Controls */
+        .handle { padding: 10px 15px; color: #ccc; cursor: grab; font-size: 24px; }
+        .stop-content { flex: 1; font-size: 14px; }
+        .check-icon { font-size: 40px; color: var(--green); margin-left: 10px; cursor: pointer; }
         #controls { display: none; padding: 12px; background: #f8f9fa; border-bottom: 1px solid #ddd; align-items: center; justify-content: center; gap: 10px; }
-        .status-msg { color: var(--red); font-weight: bold; font-size: 13px; margin-right: 5px; }
-        .btn-action { padding: 10px 15px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 14px; color: white; }
-        .btn-opt { background: var(--blue); }
-        .btn-calc { background: #444; }
-
-        /* Numbered Pins */
-        .marker { width: 32px; height: 32px; background: var(--red); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; cursor: pointer; }
+        .status-msg { color: var(--red); font-weight: bold; font-size: 13px; }
+        .btn-action { padding: 10px 15px; border: none; border-radius: 4px; font-weight: bold; color: white; cursor: pointer; }
+        .marker { width: 32px; height: 32px; background: var(--red); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
         .marker.completed { background: #999; }
-
-        /* Overlays */
-        #loader { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; background: rgba(255,255,255,0.9); padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); display: none; font-weight: bold; }
+        #loader { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); display: none; }
         #delete-modal { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index: 2000; display:none; align-items:center; justify-content:center; }
-        .modal-box { background:white; padding:25px; border-radius:12px; width:85%; max-width:320px; text-align:center; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
     </style>
 </head>
 <body>
 
-<div id="map">
-    <div id="loader">Processing...</div>
-</div>
+<div id="map"><div id="loader">Loading...</div></div>
 
 <div id="sidebar">
     <div id="controls">
         <span class="status-msg">Changes made</span>
-        <button class="btn-action btn-opt" onclick="triggerSync('optimize')">Re-Optimize</button>
-        <button class="btn-action btn-calc" onclick="triggerSync('calculate')">Re-Calculate</button>
+        <button class="btn-action" style="background:var(--blue)" onclick="triggerSync('optimize')">Re-Optimize</button>
+        <button class="btn-action" style="background:#444" onclick="triggerSync('calculate')">Re-Calculate</button>
     </div>
     <div id="stop-list"></div>
 </div>
 
 <div id="delete-modal">
-    <div class="modal-box">
-        <h3 style="margin-top:0;">Delete Stop?</h3>
-        <p>Are you sure you want to delete this order from the route?</p>
+    <div style="background:white; padding:25px; border-radius:12px; width:80%; max-width:300px; text-align:center;">
+        <h3>Delete Order?</h3>
+        <p>Are you sure you want to remove this from the route?</p>
         <div style="display:flex; gap:10px; margin-top:20px;">
-            <button onclick="confirmDelete(false)" style="flex:1; padding:12px; border:none; background:#eee; border-radius:6px; font-weight:bold;">Cancel</button>
-            <button onclick="confirmDelete(true)" style="flex:1; padding:12px; border:none; background:var(--red); color:white; border-radius:6px; font-weight:bold;">Delete</button>
+            <button onclick="confirmDelete(false)" style="flex:1; padding:12px; border:none; border-radius:6px;">Cancel</button>
+            <button onclick="confirmDelete(true)" style="flex:1; padding:12px; border:none; background:var(--red); color:white; border-radius:6px;">Delete</button>
         </div>
     </div>
 </div>
 
 <script>
+    // --- SETTINGS ---
     const MAPBOX_TOKEN = 'pk.eyJ1IjoibXlwaWVpbnRlcmFjdGl2ZSIsImEiOiJjbWx2ajk5Z2MwOGZlM2VwcDBkc295dzI1In0.eGIhcRPrj_Hx_PeoFAYxBA';
     const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwUcV6_7hBLb41N2M3aWEjbJtCGAb0Yeke8537P3ETml-RfMRV4msv_y6P5HctvuxqV/exec';
     
@@ -84,7 +67,7 @@
     mapboxgl.accessToken = MAPBOX_TOKEN;
     const map = new mapboxgl.Map({
         container: 'map',
-        style: 'mapbox://styles/mapbox/streets-v12',
+        style: 'mapbox://styles/mapbox/streets-v11',
         center: [-96.797, 32.776],
         zoom: 11
     });
@@ -94,12 +77,14 @@
     let deleteId = null;
 
     async function loadData() {
-        showLoader("Loading Route...");
+        if (!routeId) { alert("Missing Route ID in URL. Please re-run optimization in the sheet."); return; }
+        showLoader("Fetching Route...");
         try {
             const res = await fetch(`${WEB_APP_URL}?id=${routeId}`);
             stops = await res.json();
+            if (stops.length === 0) alert("No stops found for this Route ID.");
             render();
-        } catch (e) { alert("Error connecting to data."); }
+        } catch (e) { alert("Connection Error: Check Web App URL and Permissions."); }
         showLoader(null);
     }
 
@@ -117,14 +102,13 @@
             item.innerHTML = `
                 <div class="handle">☰</div>
                 <div class="stop-content" onclick="focusItem('${s.id}')">
-                    <b style="font-size:16px;">${i + 1}. ${s.address.split(',')[0]}</b><br>
-                    <small style="color:#666;">${s.eta} | ${s.dist}</small><br>
-                    <small style="color:#888;">${s.client}</small>
+                    <b>${i + 1}. ${s.address.split(',')[0]}</b><br>
+                    <small>${s.eta} | ${s.dist}</small>
                 </div>
                 <i class="fa-solid fa-circle-check check-icon" onclick="completeStop('${s.id}')"></i>
             `;
             
-            // Swipe Left to Delete
+            // Swipe gesture
             let startX = 0;
             item.addEventListener('touchstart', (e) => startX = e.touches[0].clientX);
             item.addEventListener('touchend', (e) => {
@@ -136,33 +120,22 @@
 
             list.appendChild(item);
 
-            // Numbered Pin
             const el = document.createElement('div');
             el.className = `marker ${s.status}`;
             el.innerText = i + 1;
             el.onclick = () => focusItem(s.id);
 
-            const m = new mapboxgl.Marker(el)
-                .setLngLat([s.lng, s.lat])
-                .addTo(map);
-            
+            const m = new mapboxgl.Marker(el).setLngLat([s.lng, s.lat]).addTo(map);
             markers.push(m);
             bounds.extend([s.lng, s.lat]);
         });
 
-        if (stops.length > 0 && !bounds.isEmpty()) {
-            map.fitBounds(bounds, { padding: 60, maxZoom: 15 });
-        }
+        if (stops.length > 0) map.fitBounds(bounds, { padding: 50, maxZoom: 15 });
     }
 
     function focusItem(id) {
         const stop = stops.find(s => s.id == id);
-        const el = document.getElementById(`item-${id}`);
-        
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.classList.add('highlight');
-        setTimeout(() => el.classList.remove('highlight'), 1500);
-        
+        document.getElementById(`item-${id}`).scrollIntoView({ behavior: 'smooth', block: 'center' });
         map.flyTo({ center: [stop.lng, stop.lat], zoom: 16 });
     }
 
@@ -170,76 +143,44 @@
         const idx = stops.findIndex(s => s.id == id);
         stops[idx].status = 'completed';
         render();
-        
-        // Auto-scroll next stop to top
-        const activeItems = document.querySelectorAll('.stop-item:not(.completed)');
-        if (activeItems.length > 0) {
-            activeItems[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
+        const next = document.querySelectorAll('.stop-item:not(.completed)')[0];
+        if (next) next.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     function confirmDelete(confirm) {
         document.getElementById('delete-modal').style.display = 'none';
         if (confirm) { 
-            const idx = stops.findIndex(s => s.id == deleteId);
-            stops[idx].status = 'cancelled';
+            stops.find(s => s.id == deleteId).status = 'cancelled';
             render();
-            showControls();
+            document.getElementById('controls').style.display = 'flex';
         }
     }
 
     async function triggerSync(action) {
-        let startTime = "8:00 AM";
-        const choice = prompt("Choose Start Time:\n1: Default (8:00 AM)\n2: Current Time\n3: Custom");
-        
-        if(choice === "2") {
-            const now = new Date();
-            startTime = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: true});
-        } else if(choice === "3") {
-            startTime = prompt("Enter time (e.g. 10:45 AM)", "8:00 AM");
-        }
-
-        showLoader(action === 'optimize' ? 'Re-optimizing...' : 'Re-calculating...');
-        
+        showLoader("Syncing...");
         try {
             const res = await fetch(WEB_APP_URL, {
                 method: 'POST',
-                body: JSON.stringify({ action, routeId, driver, stops, startTime })
+                body: JSON.stringify({ action, routeId, driver, stops })
             });
             const data = await res.json();
             stops = data.updatedStops;
             document.getElementById('controls').style.display = 'none';
             render();
-        } catch (e) { alert("Sync failed. Check connection."); }
-        
+        } catch (e) { alert("Sync failed."); }
         showLoader(null);
-    }
-
-    function showControls() {
-        document.getElementById('controls').style.display = 'flex';
     }
 
     function showLoader(text) {
         const l = document.getElementById('loader');
-        if (text) { l.innerText = text; l.style.display = 'block'; }
-        else { l.style.display = 'none'; }
+        l.style.display = text ? 'block' : 'none';
+        if (text) l.innerText = text;
     }
 
-    function openNav(lat, lng) {
-        // iOS/Android Universal Maps Protocol
-        const url = (navigator.platform.indexOf('iPhone') != -1) 
-            ? `maps://maps.apple.com/?daddr=${lat},${lng}` 
-            : `google.navigation:q=${lat},${lng}`;
-        window.location.href = url;
-    }
-
-    // Initialize Sortable with smooth mobile support
     Sortable.create(document.getElementById('stop-list'), {
         handle: '.handle',
-        animation: 200,
-        delay: 50,
-        delayOnTouchOnly: true,
-        onEnd: showControls
+        animation: 150,
+        onEnd: () => document.getElementById('controls').style.display = 'flex'
     });
 
     loadData();

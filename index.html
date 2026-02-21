@@ -11,28 +11,64 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
     <style>
-        :root { --blue: #2b579a; --red: #d93025; --green: #28a745; }
+        :root { --blue: #2b579a; --red: #d93025; --green: #28a745; --purple: #6C5C99; }
         * { box-sizing: border-box; font-family: Calibri, 'Candara', 'Segoe UI', sans-serif; }
         body { margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; background: #fff; overflow: hidden; }
         
-        /* Rigid Map Container */
         #map-wrapper { height: 45vh; width: 100%; position: relative; border-bottom: 2px solid #ccc; background-color: #f0f0f0; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; height: 100%; }
         
-        #sidebar { flex: 1; display: flex; flex-direction: column; background: white; z-index: 10; position: relative; }
+        #sidebar { flex: 1; display: flex; flex-direction: column; background: white; z-index: 10; border-top: 3px solid #ddd; position: relative; }
         #stop-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-        .stop-item { display: flex; align-items: center; padding: 12px 15px; border-bottom: 1px solid #eee; background: white; }
+
+        /* REFINED TILE STRUCTURE */
+        .stop-item { display: flex; align-items: stretch; border-bottom: 1px solid #eee; background: white; min-height: 80px; }
         .stop-item.completed { opacity: 0.5; background: #f9f9f9; }
         .stop-item.highlight { background: #fff9c4 !important; }
-        .handle { padding: 10px; color: #ccc; cursor: grab; font-size: 20px; }
-        .stop-content { flex: 1; padding-left: 5px; }
-        .stop-content b { font-size: 17px; color: #333; display: block; }
-        .row-meta { font-size: 14px; color: #666; margin-top: 2px; }
-        .row-details { font-size: 13px; color: #888; margin-top: 1px; font-style: italic; }
-        .icon-btn { font-size: 32px; padding: 8px; cursor: pointer; }
+
+        /* LEFT SIDEBAR: STOP NUMBER */
+        .stop-sidebar { 
+            width: 45px; 
+            background-color: var(--purple); 
+            color: white; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-weight: bold; 
+            font-size: 18px; 
+        }
+
+        .handle { padding: 15px 10px; color: #ccc; cursor: grab; font-size: 18px; display: flex; align-items: center; }
+
+        /* MIDDLE CONTENT */
+        .stop-content { flex: 1; padding: 10px 5px; display: flex; flex-direction: column; justify-content: center; }
+        .stop-content b { font-size: 16px; color: #333; display: block; line-height: 1.2; }
+        .row-meta { font-size: 13px; color: #666; margin-top: 3px; }
+        .row-details { font-size: 12px; color: #888; margin-top: 2px; }
+
+        /* RIGHT ACTIONS */
+        .stop-actions { display: flex; align-items: center; padding-right: 10px; gap: 5px; }
+        
+        /* CSV TYPE BOX */
+        .csv-box { 
+            width: 32px; height: 32px; 
+            border: 2px solid var(--blue); 
+            color: var(--blue); 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-weight: bold; 
+            font-size: 11px; 
+            border-radius: 4px; 
+            cursor: pointer;
+            margin-right: 5px;
+        }
+
+        .icon-btn { font-size: 28px; cursor: pointer; padding: 5px; }
         .check-icon { color: var(--green); }
-        .nav-icon { color: var(--blue); margin-left: 5px; }
-        #controls { display: none; padding: 12px; background: #f1f4f9; border-bottom: 1px solid #ddd; align-items: center; justify-content: center; gap: 10px; }
+        .nav-icon { color: var(--blue); }
+
+        #controls { display: none; padding: 10px; background: #f1f4f9; border-bottom: 1px solid #ddd; align-items: center; justify-content: center; gap: 10px; }
         .marker { width: 32px; height: 32px; background: var(--red); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; }
         #modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index: 2000; display:none; align-items:center; justify-content:center; }
         .modal-box { background:white; padding:25px; border-radius:12px; width:85%; max-width:340px; text-align: center; }
@@ -56,7 +92,6 @@
 <div id="modal-overlay"><div class="modal-box" id="modal-content"></div></div>
 
 <script>
-    // --- SETTINGS ---
     const MAPBOX_TOKEN = 'pk.eyJ1IjoibXlwaWVpbnRlcmFjdGl2ZSIsImEiOiJjbWx2ajk5Z2MwOGZlM2VwcDBkc295dzI1In0.eGIhcRPrj_Hx_PeoFAYxBA';
     const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwUcV6_7hBLb41N2M3aWEjbJtCGAb0Yeke8537P3ETml-RfMRV4msv_y6P5HctvuxqV/exec';
     
@@ -67,22 +102,12 @@
     mapboxgl.accessToken = MAPBOX_TOKEN;
     const map = new mapboxgl.Map({
         container: 'map',
-        style: 'mapbox://styles/mapbox/streets-v12', // Updated to v12
+        style: 'mapbox://styles/mapbox/streets-v12',
         center: [-96.797, 32.776],
         zoom: 11
     });
 
-    // Force map to fill its container once loaded
-    map.on('load', () => { 
-        console.log("Map successfully connected.");
-        map.resize(); 
-    });
-
-    // Debugger for blank backgrounds
-    map.on('error', (e) => {
-        console.error("Mapbox Error:", e.error.message);
-        if (e.error.message.includes('403')) alert("Token Blocked: Check URL Restrictions in Mapbox.");
-    });
+    map.on('load', () => { map.resize(); });
 
     let stops = [];
     let markers = [];
@@ -110,7 +135,24 @@
             const item = document.createElement('div');
             item.className = `stop-item ${s.status}`;
             item.id = `item-${s.id}`;
-            item.innerHTML = `<div class="handle">☰</div><div class="stop-content" onclick="focusItem('${s.id}')"><b>${i + 1}. ${s.address.split(',')[0]}</b><div class="row-meta">${s.eta} | ${s.dist}</div><div class="row-details">${s.client} | ${s.type}</div></div><i class="fa-solid fa-circle-check icon-btn check-icon" onclick="toggleComplete('${s.id}')"></i><i class="fa-solid fa-location-arrow icon-btn nav-icon" onclick="openNav('${s.lat}','${s.lng}')"></i>`;
+            
+            // Format App Label (2 chars)
+            const appLabel = (s.client && s.client.length >= 2) ? s.client.substring(0,2).toUpperCase() : "??";
+
+            item.innerHTML = `
+                <div class="stop-sidebar">${i + 1}</div>
+                <div class="handle">☰</div>
+                <div class="stop-content" onclick="focusItem('${s.id}')">
+                    <b>${s.address.split(',')[0]}</b>
+                    <div class="row-meta">${s.eta} | ${s.dist}</div>
+                    <div class="row-details">${s.type}</div>
+                </div>
+                <div class="stop-actions">
+                    <div class="csv-box" onclick="openVendorApp('${s.client}')">${appLabel}</div>
+                    <i class="fa-solid fa-circle-check icon-btn check-icon" onclick="toggleComplete('${s.id}')"></i>
+                    <i class="fa-solid fa-location-arrow icon-btn nav-icon" onclick="openNav('${s.lat}','${s.lng}')"></i>
+                </div>
+            `;
             
             let startX = 0;
             item.addEventListener('touchstart', (e) => startX = e.touches[0].clientX);
@@ -136,6 +178,10 @@
         const stop = stops.find(s => s.id == id);
         document.getElementById(`item-${id}`).scrollIntoView({ behavior: 'smooth', block: 'center' });
         map.flyTo({ center: [stop.lng, stop.lat], zoom: 16 });
+    }
+
+    function openVendorApp(appName) {
+        alert("Navigating to " + appName + " (Link to be added in Sheet settings)");
     }
 
     function openNav(lat, lng) {

@@ -11,17 +11,19 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
     <style>
-        :root { --blue: #2b579a; --fade-blue: #eef2f9; --red: #d93025; --green: #28a745; --purple: #6C5C99; }
+        :root { --blue: #2b579a; --fade-blue: #eef2f9; --red: #d93025; --green: #28a745; --purple: #6C5C99; --orange: #f39c12; }
         * { box-sizing: border-box; font-family: Calibri, 'Candara', 'Segoe UI', sans-serif; }
         body { margin: 0; padding: 0; height: 100vh; width: 100vw; display: flex; background: #fff; overflow: hidden; }
         
+        /* VIEW MODE LOGIC */
         body.view-driver { flex-direction: column; }
         .view-driver #map-wrapper { height: 40vh; min-height: 40vh; width: 100%; border-bottom: 2px solid #ccc; }
         .view-driver #sidebar { height: 60vh; min-height: 60vh; width: 100%; }
 
         body.view-admin { flex-direction: row; }
-        .view-admin #sidebar { width: 350px; height: 100vh; border-right: 2px solid #ccc; font-size: 0.9em; }
+        .view-admin #sidebar { width: 300px; height: 100vh; border-right: 2px solid #ccc; font-size: 0.9em; }
         .view-admin #map-wrapper { flex: 1; height: 100vh; }
+        .view-admin .stop-actions { display: none !important; } /* Hide buttons in Admin View */
 
         #map-wrapper { position: relative; background-color: #efefef; overflow: hidden; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; height: 100%; }
@@ -49,7 +51,11 @@
         .stop-item { display: flex; align-items: stretch; border-bottom: 1px solid #eee; background: white; min-height: 58px; }
         .stop-item.completed { opacity: 0.5; background: #f9f9f9; }
         .stop-item.selected { background: var(--fade-blue) !important; }
+        
+        /* DYNAMIC SIDEBAR COLOR */
         .stop-sidebar { width: 32px; background-color: var(--purple); color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 15px; }
+        .stop-sidebar.urgent { background-color: var(--orange); }
+
         .handle { padding: 0 5px; color: #ccc; cursor: grab; font-size: 16px; display: flex; align-items: center; }
         .csv-box { align-self: center; width: 26px; height: 26px; border: 1.5px solid var(--blue); color: var(--blue); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 9px; border-radius: 4px; margin: 0 6px; }
         
@@ -57,15 +63,16 @@
         .stop-content b { font-size: 15px; color: #333; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .row-meta { font-size: 12px; color: #666; margin-top: 1px; }
         .row-details { font-size: 11px; color: #888; margin-top: 1px; }
-        .due-warning { color: var(--red); font-weight: bold; }
+        
+        /* LARGER DUE DATE FONT */
+        .due-date-label { font-size: 14px; font-weight: bold; color: #333; }
+        .due-date-label.urgent { color: var(--red); }
 
-        /* TILE ACTIONS RESTORED */
         .stop-actions { display: flex; align-items: center; padding-right: 8px; gap: 4px; }
         .icon-btn { font-size: 26px; cursor: pointer; padding: 4px; }
         .check-icon { color: var(--green); }
         .nav-icon { color: var(--blue); }
 
-        /* PIN STYLE */
         .marker { 
             width: 28px; height: 28px; background: var(--red); border-radius: 50%; 
             display: flex; align-items: center; justify-content: center; 
@@ -208,7 +215,7 @@
         document.getElementById('bulk-complete-btn').style.display = hasSelection ? 'block' : 'none';
     }
 
-    // --- DATA LOADING & RENDERING ---
+    // --- RENDERING ---
     async function loadData() {
         if (!routeId) return;
         try {
@@ -232,16 +239,21 @@
             const due = s.dueDate ? new Date(s.dueDate) : null;
             const isLate = (due && due <= new Date());
             const dueFmt = due ? `${due.getMonth()+1}/${due.getDate()}` : "N/A";
-            const dueHtml = isLate ? `<span class="due-warning">⚠️ ${dueFmt}</span>` : dueFmt;
+            
+            // SIDEBAR COLOR LOGIC
+            const sidebarUrgencyClass = isLate ? 'urgent' : '';
+            const dueDateUrgencyClass = isLate ? 'urgent' : '';
 
             item.innerHTML = `
-                <div class="stop-sidebar">${i + 1}</div>
+                <div class="stop-sidebar ${sidebarUrgencyClass}">${i + 1}</div>
                 <div class="handle">☰</div>
                 <div class="csv-box">${(s.client||"??").substring(0,2).toUpperCase()}</div>
                 <div class="stop-content" onclick="focusItem('${s.id}')">
                     <b>${s.address.split(',')[0]}</b>
                     <div class="row-meta">${s.eta} | ${s.dist}</div>
-                    <div class="row-details">${dueHtml} | ${s.type}</div>
+                    <div class="row-details">
+                        <span class="due-date-label ${dueDateUrgencyClass}">${dueFmt}</span> | ${s.type}
+                    </div>
                 </div>
                 <div class="stop-actions">
                     <i class="fa-solid fa-circle-check icon-btn check-icon" onclick="toggleComplete('${s.id}')"></i>
@@ -277,7 +289,6 @@
         if (stops.length > 0) { initialBounds = bounds; map.fitBounds(bounds, { padding: 50, maxZoom: 15 }); }
     }
 
-    // --- SHARED ACTIONS ---
     function focusItem(id) {
         const stop = stops.find(s => s.id == id), el = document.getElementById(`item-${id}`);
         if(el) {

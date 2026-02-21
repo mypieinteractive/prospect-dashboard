@@ -40,24 +40,35 @@
         .boxdraw { background: rgba(43, 87, 154, 0.2); border: 2px solid var(--blue); position: absolute; top: 0; left: 0; width: 0; height: 0; z-index: 100; pointer-events: none; }
 
         /* FLOATING ACTION BUTTONS */
-        .map-overlay-btns { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); z-index: 200; display: flex; gap: 10px; }
-        .floating-btn { background: white; border: 1px solid #ccc; border-radius: 20px; padding: 8px 16px; font-weight: bold; font-size: 13px; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.2); display: none; }
+        .map-overlay-btns { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); z-index: 200; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+        .floating-btn { background: white; border: 1px solid #ccc; border-radius: 20px; padding: 8px 16px; font-weight: bold; font-size: 13px; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.2); display: none; white-space: nowrap; }
         #bulk-remove-btn { background: var(--red); color: white; border-color: var(--red); }
+        #bulk-complete-btn { background: var(--green); color: white; border-color: var(--green); }
+        #reset-view-btn { display: none; }
 
         #sidebar { display: flex; flex-direction: column; background: white; z-index: 10; }
         #search-container { padding: 8px; border-bottom: 1px solid #ddd; }
         #search-input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
         #stop-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
+        /* TILE STRUCTURE */
         .stop-item { display: flex; align-items: stretch; border-bottom: 1px solid #eee; background: white; min-height: 62px; }
+        .stop-item.completed { opacity: 0.5; background: #f9f9f9; }
         .stop-item.selected { background: var(--fade-blue) !important; }
         .stop-sidebar { width: 32px; background-color: var(--purple); color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 15px; }
         .handle { padding: 0 5px; color: #ccc; cursor: grab; font-size: 16px; display: flex; align-items: center; }
         .csv-box { align-self: center; width: 26px; height: 26px; border: 1.5px solid var(--blue); color: var(--blue); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 9px; border-radius: 4px; margin: 0 6px; }
         .stop-content { flex: 1; padding: 4px 0; overflow: hidden; display: flex; flex-direction: column; justify-content: center; }
         .stop-content b { font-size: 15px; color: #333; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .row-meta { font-size: 12px; color: #666; margin-top: 1px; }
+        .row-details { font-size: 11px; color: #888; margin-top: 1px; }
+        .due-warning { color: var(--red); font-weight: bold; }
+
         .stop-actions { display: flex; align-items: center; padding-right: 8px; gap: 4px; }
         .icon-btn { font-size: 24px; cursor: pointer; padding: 4px; }
+        .check-icon { color: var(--green); }
+        .nav-icon { color: var(--blue); }
+        .more-icon { color: #888; }
         
         #context-menu { position: fixed; background: white; border: 1px solid #ccc; box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 3000; border-radius: 6px; display: none; overflow: hidden; }
         .context-item { padding: 12px 20px; font-weight: bold; cursor: pointer; color: var(--red); font-size: 14px; }
@@ -66,6 +77,7 @@
         #controls { display: none; padding: 8px; background: #f1f4f9; border-bottom: 1px solid #ddd; align-items: center; justify-content: center; gap: 8px; }
         .marker { width: 28px; height: 28px; background: var(--red); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 12px; cursor: pointer; }
         .marker.bulk-selected { background: var(--blue) !important; box-shadow: 0 0 10px var(--blue); }
+        .marker.completed { background: #999; }
         
         #modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index: 2000; display:none; align-items:center; justify-content:center; }
         .modal-box { background:white; padding:20px; border-radius:12px; width:85%; max-width:340px; text-align: center; }
@@ -80,6 +92,7 @@
     </div>
     <div class="map-overlay-btns">
         <button id="reset-view-btn" class="floating-btn" onclick="resetMapView()">Reset View</button>
+        <button id="bulk-complete-btn" class="floating-btn" onclick="triggerBulkComplete()">Mark selected as completed</button>
         <button id="bulk-remove-btn" class="floating-btn" onclick="triggerBulkDelete()">Remove orders from route</button>
     </div>
     <div id="map"></div>
@@ -110,7 +123,7 @@
 
     let stops = [], markers = [], initialBounds = null, selectedIds = new Set();
 
-    // --- ENHANCED SELECTION LOGIC ---
+    // --- BOX SELECTION LOGIC ---
     let start, current, box, longPressActive = false, pressTimer;
     const canvas = map.getCanvasContainer();
 
@@ -149,24 +162,19 @@
         box.style.height = maxY - minY + 'px';
     }
 
-    function mouseUp(e) {
-        finishSelection(mousePos(e));
-        longPressActive = false;
-    }
+    function mouseUp(e) { finishSelection(mousePos(e)); longPressActive = false; }
 
     function finishSelection(e) {
         document.removeEventListener('mousemove', mouseMove);
         document.removeEventListener('mouseup', mouseUp);
         if (box) { box.parentNode.removeChild(box); box = null; }
         if (!start) return;
-
         const bounds = [start, e];
         const boxFeatures = markers.filter(m => {
             const point = map.project(m.getLngLat());
             return point.x >= Math.min(bounds[0].x, bounds[1].x) && point.x <= Math.max(bounds[0].x, bounds[1].x) &&
                    point.y >= Math.min(bounds[0].y, bounds[1].y) && point.y <= Math.max(bounds[0].y, bounds[1].y);
         });
-
         selectedIds.clear();
         boxFeatures.forEach(m => selectedIds.add(m._stopId));
         updateSelectionUI();
@@ -184,7 +192,9 @@
                 if (el) el.classList.add('selected');
             }
         });
-        document.getElementById('bulk-remove-btn').style.display = selectedIds.size > 1 ? 'block' : 'none';
+        const hasBulk = selectedIds.size > 1;
+        document.getElementById('bulk-remove-btn').style.display = hasBulk ? 'block' : 'none';
+        document.getElementById('bulk-complete-btn').style.display = hasBulk ? 'block' : 'none';
     }
 
     // --- MAIN ENGINE ---
@@ -232,10 +242,8 @@
             el.className = `marker ${s.status}`; el.innerText = i + 1;
             el.addEventListener('contextmenu', (e) => { e.preventDefault(); showActionMenu(e, s.id); });
             el.onclick = () => { selectedIds.clear(); selectedIds.add(s.id); updateSelectionUI(); focusItem(s.id); };
-            
             const m = new mapboxgl.Marker(el).setLngLat([s.lng, s.lat]).addTo(map);
-            m._stopId = s.id;
-            markers.push(m); bounds.extend([s.lng, s.lat]);
+            m._stopId = s.id; markers.push(m); bounds.extend([s.lng, s.lat]);
         });
         if (stops.length > 0) { initialBounds = bounds; map.fitBounds(bounds, { padding: 50, maxZoom: 15 }); }
     }
@@ -248,10 +256,22 @@
         }
     }
 
-    function triggerDelete(id) {
-        if(confirm("Remove order from route?")) { stops.find(s => s.id == id).status = 'cancelled'; render(); drawRoute(); document.getElementById('controls').style.display = 'flex'; }
+    function triggerBulkComplete() {
+        if(confirm(`Mark ${selectedIds.size} orders as completed?`)) {
+            selectedIds.forEach(id => { stops.find(s => s.id == id).status = 'completed'; });
+            selectedIds.clear(); render(); drawRoute(); updateSelectionUI();
+            document.getElementById('controls').style.display = 'flex';
+        }
     }
 
+    function triggerDelete(id) {
+        if(confirm("Remove order from route?")) { 
+            stops.find(s => s.id == id).status = 'cancelled'; 
+            render(); drawRoute(); document.getElementById('controls').style.display = 'flex'; 
+        }
+    }
+
+    // Helper functions...
     function showActionMenu(e, id) {
         e.stopPropagation(); const menu = document.getElementById('context-menu');
         const x = e.clientX || e.pageX, y = e.clientY || e.pageY;
@@ -274,8 +294,10 @@
         }
     }
     function focusItem(id) {
+        document.querySelectorAll('.stop-item').forEach(el => el.classList.remove('selected'));
         const stop = stops.find(s => s.id == id), el = document.getElementById(`item-${id}`);
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' }); map.flyTo({ center: [stop.lng, stop.lat], zoom: 16 });
+        if(el) { el.classList.add('selected'); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+        map.flyTo({ center: [stop.lng, stop.lat], zoom: 16 });
     }
     function toggleComplete(id) { const idx = stops.findIndex(s => s.id == id); stops[idx].status = (stops[idx].status === 'completed') ? '' : 'completed'; render(); drawRoute(); }
     function openNav(lat, lng) { let pref = localStorage.getItem('navPref'); if (!pref) { showNavChoice(lat, lng); } else { launchMaps(pref, lat, lng); } }
@@ -298,6 +320,8 @@
         } catch (e) { alert("Sync Failed."); }
     }
 
+    map.on('zoomend', () => { document.getElementById('reset-view-btn').style.display = map.getZoom() > 12 ? 'block' : 'none'; });
+    Sortable.create(document.getElementById('stop-list'), { handle: '.handle', animation: 150, onEnd: () => { document.getElementById('controls').style.display = 'flex'; } });
     loadData();
 </script>
 </body>

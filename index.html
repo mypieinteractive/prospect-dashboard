@@ -52,22 +52,27 @@
         .stop-sidebar { width: 32px; background-color: var(--purple); color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 15px; }
         .handle { padding: 0 5px; color: #ccc; cursor: grab; font-size: 16px; display: flex; align-items: center; }
         .csv-box { align-self: center; width: 26px; height: 26px; border: 1.5px solid var(--blue); color: var(--blue); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 9px; border-radius: 4px; margin: 0 6px; }
-        .stop-content { flex: 1; padding: 4px 0; overflow: hidden; display: flex; flex-direction: column; justify-content: center; }
+        
+        .stop-content { flex: 1; padding: 4px 0; overflow: hidden; display: flex; flex-direction: column; justify-content: center; cursor: pointer; }
         .stop-content b { font-size: 15px; color: #333; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .row-meta { font-size: 12px; color: #666; margin-top: 1px; }
         .row-details { font-size: 11px; color: #888; margin-top: 1px; }
         .due-warning { color: var(--red); font-weight: bold; }
 
-        #controls { display: none; padding: 8px; background: #f1f4f9; border-bottom: 1px solid #ddd; align-items: center; justify-content: center; gap: 8px; }
-        
-        /* PIN FIX: Ensure markers are properly anchored */
+        /* TILE ACTIONS RESTORED */
+        .stop-actions { display: flex; align-items: center; padding-right: 8px; gap: 4px; }
+        .icon-btn { font-size: 26px; cursor: pointer; padding: 4px; }
+        .check-icon { color: var(--green); }
+        .nav-icon { color: var(--blue); }
+
+        /* PIN STYLE */
         .marker { 
             width: 28px; height: 28px; background: var(--red); border-radius: 50%; 
             display: flex; align-items: center; justify-content: center; 
             color: white; font-weight: bold; border: 2px solid white; 
             box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 12px; cursor: pointer; 
         }
-        .marker.bulk-selected { background: var(--blue) !important; box-shadow: 0 0 10px var(--blue); transform: scale(1.15); }
+        .marker.bulk-selected { background: var(--blue) !important; box-shadow: 0 0 10px var(--blue); transform: scale(1.1); }
         .marker.completed { background: #999; }
         .marker-warning { position: absolute; top: -10px; right: -10px; font-size: 16px; pointer-events: none; }
 
@@ -122,7 +127,7 @@
 
     let stops = [], markers = [], initialBounds = null, selectedIds = new Set();
 
-    // --- BOX SELECTION LOGIC ---
+    // --- SELECTION & BOX LOGIC ---
     let start, current, box, longPressActive = false, pressTimer;
     const canvas = map.getCanvasContainer();
 
@@ -149,8 +154,8 @@
         map.dragPan.disable();
         document.addEventListener('mousemove', mouseMove);
         document.addEventListener('mouseup', mouseUp);
-        document.addEventListener('touchmove', (te) => mouseMove(te.touches[0]));
-        document.addEventListener('touchend', (te) => mouseUp(te.changedTouches[0]));
+        document.addEventListener('touchmove', (te) => mouseMove(te.touches[te.touches.length - 1]));
+        document.addEventListener('touchend', (te) => mouseUp(te.changedTouches[te.changedTouches.length - 1]));
         start = mousePos(e);
     }
 
@@ -164,8 +169,8 @@
         const minX = Math.min(start.x, current.x), maxX = Math.max(start.x, current.x);
         const minY = Math.min(start.y, current.y), maxY = Math.max(start.y, current.y);
         box.style.transform = `translate(${minX}px, ${minY}px)`;
-        box.style.width = maxX - minX + 'px';
-        box.style.height = maxY - minY + 'px';
+        box.style.width = (maxX - minX) + 'px';
+        box.style.height = (maxY - minY) + 'px';
     }
 
     function mouseUp(e) { finishSelection(mousePos(e)); longPressActive = false; }
@@ -203,7 +208,7 @@
         document.getElementById('bulk-complete-btn').style.display = hasSelection ? 'block' : 'none';
     }
 
-    // --- MAIN ENGINE ---
+    // --- DATA LOADING & RENDERING ---
     async function loadData() {
         if (!routeId) return;
         try {
@@ -238,13 +243,16 @@
                     <div class="row-meta">${s.eta} | ${s.dist}</div>
                     <div class="row-details">${dueHtml} | ${s.type}</div>
                 </div>
+                <div class="stop-actions">
+                    <i class="fa-solid fa-circle-check icon-btn check-icon" onclick="toggleComplete('${s.id}')"></i>
+                    <i class="fa-solid fa-location-arrow icon-btn nav-icon" onclick="openNav('${s.lat}','${s.lng}')"></i>
+                </div>
             `;
             list.appendChild(item);
 
             const el = document.createElement('div');
             el.className = `marker ${s.status}`; 
             el.innerHTML = `<span>${i + 1}</span>`;
-            
             if (isLate) {
                 const warn = document.createElement('div');
                 warn.className = 'marker-warning'; warn.innerText = '⚠️';
@@ -254,8 +262,7 @@
             el.onclick = (e) => {
                 e.stopPropagation();
                 if (e.shiftKey) {
-                    if (selectedIds.has(s.id)) selectedIds.delete(s.id);
-                    else selectedIds.add(s.id);
+                    selectedIds.has(s.id) ? selectedIds.delete(s.id) : selectedIds.add(s.id);
                 } else {
                     selectedIds.clear();
                     selectedIds.add(s.id);
@@ -264,12 +271,27 @@
                 focusItem(s.id);
             };
 
-            const m = new mapboxgl.Marker(el)
-                .setLngLat([s.lng, s.lat])
-                .addTo(map);
+            const m = new mapboxgl.Marker(el).setLngLat([s.lng, s.lat]).addTo(map);
             m._stopId = s.id; markers.push(m); bounds.extend([s.lng, s.lat]);
         });
         if (stops.length > 0) { initialBounds = bounds; map.fitBounds(bounds, { padding: 50, maxZoom: 15 }); }
+    }
+
+    // --- SHARED ACTIONS ---
+    function focusItem(id) {
+        const stop = stops.find(s => s.id == id), el = document.getElementById(`item-${id}`);
+        if(el) {
+            document.querySelectorAll('.stop-item').forEach(tile => tile.classList.remove('selected'));
+            el.classList.add('selected');
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        map.flyTo({ center: [stop.lng, stop.lat], zoom: 16 });
+    }
+
+    function toggleComplete(id) {
+        const idx = stops.findIndex(s => s.id == id);
+        stops[idx].status = (stops[idx].status === 'completed') ? '' : 'completed';
+        render(); drawRoute();
     }
 
     function triggerBulkDelete() {
@@ -288,6 +310,19 @@
         }
     }
 
+    function openNav(lat, lng) {
+        let pref = localStorage.getItem('navPref');
+        if (!pref) { showNavChoice(lat, lng); } else { launchMaps(pref, lat, lng); }
+    }
+
+    function showNavChoice(lat, lng) {
+        const modal = document.getElementById('modal-overlay'); modal.style.display = 'flex';
+        document.getElementById('modal-content').innerHTML = `<h3>Maps Preference:</h3><div style="display:flex; flex-direction:column; gap:8px;"><button style="padding:12px; border:none; border-radius:6px; background:var(--blue); color:white; font-weight:bold;" onclick="setNavPref('google','${lat}','${lng}')">Google Maps</button><button style="padding:12px; border:none; border-radius:6px; background:#eee;" onclick="setNavPref('apple','${lat}','${lng}')">Apple Maps</button></div>`;
+    }
+
+    function setNavPref(pref, lat, lng) { localStorage.setItem('navPref', pref); document.getElementById('modal-overlay').style.display = 'none'; launchMaps(pref, lat, lng); }
+    function launchMaps(pref, lat, lng) { const url = pref === 'google' ? `comgooglemaps://?daddr=${lat},${lng}` : `maps://maps.apple.com/?daddr=${lat},${lng}`; window.location.href = url; }
+
     function resetMapView() { if (initialBounds) map.fitBounds(initialBounds, { padding: 50, maxZoom: 15 }); }
     
     function filterList() {
@@ -303,12 +338,6 @@
             map.addSource('route', { "type": "geojson", "data": { "type": "Feature", "geometry": { "type": "LineString", "coordinates": crd } } });
             map.addLayer({ "id": "route", "type": "line", "source": "route", "layout": { "line-join": "round", "line-cap": "round" }, "paint": { "line-color": "#2b579a", "line-width": 4, "line-opacity": 0.5 } });
         }
-    }
-
-    function focusItem(id) {
-        const stop = stops.find(s => s.id == id), el = document.getElementById(`item-${id}`);
-        if(el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        map.flyTo({ center: [stop.lng, stop.lat], zoom: 16 });
     }
 
     function showSyncOptions(type) {

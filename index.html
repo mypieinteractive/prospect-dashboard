@@ -21,48 +21,70 @@
         .view-driver #map-wrapper { height: 40vh; min-height: 40vh; width: 100%; border-bottom: 2px solid #ccc; }
         .view-driver #sidebar { height: 60vh; min-height: 60vh; width: 100%; }
 
-        /* ADMIN VIEW (APPENDED URL) */
+        /* ADMIN VIEW (Horizontal Split) */
         body.view-admin { flex-direction: row; }
-        .view-admin #sidebar { width: 450px; height: 100vh; border-right: 2px solid #ccc; }
+        .view-admin #sidebar { width: 350px; height: 100vh; border-right: 2px solid #ccc; font-size: 0.9em; }
         .view-admin #map-wrapper { flex: 1; height: 100vh; }
+        .view-admin .stop-content b { font-size: 14px; }
+        .view-admin .row-meta, .view-admin .row-details { font-size: 11px; }
 
         #map-wrapper { position: relative; background-color: #efefef; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; height: 100%; }
+        
+        /* Reset View Button */
+        #reset-view-btn { 
+            position: absolute; top: 15px; left: 50%; transform: translateX(-50%); 
+            z-index: 50; background: white; border: 1px solid #ccc; border-radius: 20px;
+            padding: 8px 16px; font-weight: bold; font-size: 13px; cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2); display: none;
+        }
+
         #sidebar { display: flex; flex-direction: column; background: white; z-index: 10; }
         #stop-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
         /* COMPACT TILE STRUCTURE */
-        .stop-item { display: flex; align-items: stretch; border-bottom: 1px solid #eee; background: white; min-height: 65px; }
+        .stop-item { display: flex; align-items: stretch; border-bottom: 1px solid #eee; background: white; min-height: 62px; transition: background 0.2s; }
         .stop-item.completed { opacity: 0.5; background: #f9f9f9; }
         .stop-item.selected { background: var(--fade-blue) !important; }
 
-        .stop-sidebar { width: 35px; background-color: var(--purple); color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 16px; }
+        .stop-sidebar { width: 32px; background-color: var(--purple); color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 15px; }
         .handle { padding: 0 5px; color: #ccc; cursor: grab; font-size: 16px; display: flex; align-items: center; }
 
         .csv-box { 
-            align-self: center; width: 28px; height: 28px; border: 1.5px solid var(--blue); 
+            align-self: center; width: 26px; height: 26px; border: 1.5px solid var(--blue); 
             color: var(--blue); display: flex; align-items: center; justify-content: center; 
-            font-weight: bold; font-size: 10px; border-radius: 4px; margin: 0 8px; pointer-events: none; 
+            font-weight: bold; font-size: 9px; border-radius: 4px; margin: 0 6px; pointer-events: none; 
         }
 
-        .stop-content { flex: 1; padding: 6px 0; display: flex; flex-direction: column; justify-content: center; }
+        .stop-content { flex: 1; padding: 4px 0; display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
         .stop-content b { font-size: 15px; color: #333; display: block; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .row-meta { font-size: 12px; color: #666; margin-top: 1px; }
         .row-details { font-size: 11px; color: #888; margin-top: 1px; }
         .due-warning { color: var(--red); font-weight: bold; }
 
-        .stop-actions { display: flex; align-items: center; padding-right: 8px; gap: 3px; }
-        .icon-btn { font-size: 26px; cursor: pointer; padding: 4px; }
+        /* ACTIONS & CONTEXTUAL DELETE */
+        .stop-actions { display: flex; align-items: center; padding-right: 8px; gap: 2px; }
+        .icon-btn { font-size: 24px; cursor: pointer; padding: 4px; border-radius: 4px; }
+        .icon-btn:active { background: #ddd; }
         .check-icon { color: var(--green); }
         .nav-icon { color: var(--blue); }
+        .delete-icon { color: var(--red); display: none; } /* Hidden by default */
+        .selected .delete-icon { display: block; } /* Show when highlighted */
 
         #controls { display: none; padding: 8px; background: #f1f4f9; border-bottom: 1px solid #ddd; align-items: center; justify-content: center; gap: 8px; }
-        .marker { width: 28px; height: 28px; background: var(--red); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 12px; }
+        .marker { width: 28px; height: 28px; background: var(--red); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 12px; cursor: pointer; }
+        .marker.completed { background: #999; }
+        
         #modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index: 2000; display:none; align-items:center; justify-content:center; }
         .modal-box { background:white; padding:20px; border-radius:12px; width:85%; max-width:340px; text-align: center; }
     </style>
 </head>
-<body class="view-driver"> <div id="map-wrapper"><div id="map"></div></div>
+<body class="view-driver">
+
+<div id="map-wrapper">
+    <button id="reset-view-btn" onclick="resetMapView()">Reset View</button>
+    <div id="map"></div>
+</div>
 
 <div id="sidebar">
     <div id="controls">
@@ -80,11 +102,8 @@
     const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwUcV6_7hBLb41N2M3aWEjbJtCGAb0Yeke8537P3ETml-RfMRV4msv_y6P5HctvuxqV/exec';
     
     const params = new URLSearchParams(window.location.search);
-    const routeId = params.get('id');
-    const driver = params.get('driver');
-    const viewMode = params.get('view') || 'driver';
+    const routeId = params.get('id'), driver = params.get('driver'), viewMode = params.get('view') || 'driver';
 
-    // Apply View Mode
     document.body.className = `view-${viewMode}`;
 
     mapboxgl.accessToken = MAPBOX_TOKEN;
@@ -96,19 +115,19 @@
         trackResize: true
     });
 
-    map.on('load', () => map.resize());
+    let stops = [], markers = [], initialBounds = null;
 
-    let stops = [], markers = [], defaultStart = "", defaultEnd = "";
+    map.on('zoomend', () => {
+        const resetBtn = document.getElementById('reset-view-btn');
+        if (map.getZoom() > 12) resetBtn.style.display = 'block';
+        else resetBtn.style.display = 'none';
+    });
 
     async function loadData() {
         if (!routeId) return;
         try {
             const res = await fetch(`${WEB_APP_URL}?id=${routeId}`);
             stops = await res.json();
-            if (stops.length > 0) {
-                defaultStart = stops[0].address;
-                defaultEnd = stops[stops.length - 1].address;
-            }
             render();
             drawRoute();
         } catch (e) { console.error("Data load failed", e); }
@@ -124,33 +143,26 @@
             item.className = `stop-item ${s.status}`;
             item.id = `item-${s.id}`;
             
-            // Due Date Logic
-            const today = new Date();
             const due = s.dueDate ? new Date(s.dueDate) : null;
-            const isLate = (due && due <= today);
-            const dueFormatted = due ? `${due.getMonth()+1}/${due.getDate()}` : "N/A";
-            const dueHtml = isLate ? `<span class="due-warning">⚠️ ${dueFormatted}</span>` : dueFormatted;
-
-            const appLabel = (s.client && s.client.length >= 2) ? s.client.substring(0,2).toUpperCase() : "??";
+            const isLate = (due && due <= new Date());
+            const dueFmt = due ? `${due.getMonth()+1}/${due.getDate()}` : "N/A";
+            const dueHtml = isLate ? `<span class="due-warning">⚠️ ${dueFmt}</span>` : dueFmt;
 
             item.innerHTML = `
                 <div class="stop-sidebar">${i + 1}</div>
                 <div class="handle">☰</div>
-                <div class="csv-box">${appLabel}</div>
+                <div class="csv-box">${(s.client||"??").substring(0,2).toUpperCase()}</div>
                 <div class="stop-content" onclick="focusItem('${s.id}')">
                     <b>${s.address.split(',')[0]}</b>
                     <div class="row-meta">${s.eta} | ${s.dist}</div>
                     <div class="row-details">${dueHtml} | ${s.type}</div>
                 </div>
                 <div class="stop-actions">
+                    <i class="fa-solid fa-trash-can icon-btn delete-icon" onclick="triggerDelete('${s.id}')"></i>
                     <i class="fa-solid fa-circle-check icon-btn check-icon" onclick="toggleComplete('${s.id}')"></i>
                     <i class="fa-solid fa-location-arrow icon-btn nav-icon" onclick="openNav('${s.lat}','${s.lng}')"></i>
                 </div>
             `;
-            
-            let startX = 0;
-            item.addEventListener('touchstart', (e) => startX = e.touches[0].clientX);
-            item.addEventListener('touchend', (e) => { if (startX - e.changedTouches[0].clientX > 80) triggerDelete(s.id); });
             list.appendChild(item);
 
             const el = document.createElement('div');
@@ -159,21 +171,25 @@
             const m = new mapboxgl.Marker(el).setLngLat([s.lng, s.lat]).addTo(map);
             markers.push(m); bounds.extend([s.lng, s.lat]);
         });
-        if (stops.length > 0) map.fitBounds(bounds, { padding: 50, maxZoom: 15 });
+        if (stops.length > 0) {
+            initialBounds = bounds;
+            map.fitBounds(bounds, { padding: 50, maxZoom: 15 });
+        }
     }
 
     function drawRoute() {
-        const activeStops = stops.filter(s => s.status !== 'cancelled');
-        if (activeStops.length < 2) return;
-
-        const coords = activeStops.map(s => [s.lng, s.lat]);
-        
-        if (map.getSource('route')) {
-            map.getSource('route').setData({ "type": "Feature", "geometry": { "type": "LineString", "coordinates": coords } });
-        } else {
+        const active = stops.filter(s => s.status !== 'cancelled');
+        if (active.length < 2) return;
+        const coords = active.map(s => [s.lng, s.lat]);
+        if (map.getSource('route')) map.getSource('route').setData({ "type": "Feature", "geometry": { "type": "LineString", "coordinates": coords } });
+        else {
             map.addSource('route', { "type": "geojson", "data": { "type": "Feature", "geometry": { "type": "LineString", "coordinates": coords } } });
-            map.addLayer({ "id": "route", "type": "line", "source": "route", "layout": { "line-join": "round", "line-cap": "round" }, "paint": { "line-color": "#2b579a", "line-width": 4, "line-opacity": 0.6 } });
+            map.addLayer({ "id": "route", "type": "line", "source": "route", "layout": { "line-join": "round", "line-cap": "round" }, "paint": { "line-color": "#2b579a", "line-width": 4, "line-opacity": 0.5 } });
         }
+    }
+
+    function resetMapView() {
+        if (initialBounds) map.fitBounds(initialBounds, { padding: 50, maxZoom: 15 });
     }
 
     function focusItem(id) {
@@ -185,7 +201,6 @@
         map.flyTo({ center: [stop.lng, stop.lat], zoom: 16 });
     }
 
-    // Toggle logic and sync functions remain same...
     function toggleComplete(id) {
         const idx = stops.findIndex(s => s.id == id);
         stops[idx].status = (stops[idx].status === 'completed') ? '' : 'completed';
@@ -200,7 +215,7 @@
     function showNavChoice(lat, lng) {
         const modal = document.getElementById('modal-overlay');
         modal.style.display = 'flex';
-        document.getElementById('modal-content').innerHTML = `<h3>Preferred Maps App:</h3><div style="display:flex; flex-direction:column; gap:8px;"><button style="padding:12px; border:none; border-radius:6px; background:var(--blue); color:white; font-weight:bold;" onclick="setNavPref('google','${lat}','${lng}')">Google Maps</button><button style="padding:12px; border:none; border-radius:6px; background:#eee;" onclick="setNavPref('apple','${lat}','${lng}')">Apple Maps</button></div>`;
+        document.getElementById('modal-content').innerHTML = `<h3>Maps Preference:</h3><div style="display:flex; flex-direction:column; gap:8px;"><button style="padding:12px; border:none; border-radius:6px; background:var(--blue); color:white; font-weight:bold;" onclick="setNavPref('google','${lat}','${lng}')">Google Maps</button><button style="padding:12px; border:none; border-radius:6px; background:#eee;" onclick="setNavPref('apple','${lat}','${lng}')">Apple Maps</button></div>`;
     }
 
     function setNavPref(pref, lat, lng) { localStorage.setItem('navPref', pref); document.getElementById('modal-overlay').style.display = 'none'; launchMaps(pref, lat, lng); }
@@ -211,7 +226,8 @@
         modal.style.display = 'flex';
         let tOpt = '';
         for(let h=6; h<=18; h++){ let hr = h>12?h-12:h; let ap = h>=12?'PM':'AM'; tOpt += `<option value="${hr}:00 ${ap}">${hr}:00 ${ap}</option><option value="${hr}:30 ${ap}">${hr}:30 ${ap}</option>`; }
-        document.getElementById('modal-content').innerHTML = `<h3 style="margin:0">${type==='optimize'?'Re-Optimize':'Update Times'}</h3><select id="start-time-select" style="width:100%; padding:8px; margin:5px 0;">${tOpt}</select><input type="text" id="start-addr" value="${defaultStart}" style="width:100%; padding:8px; margin:5px 0;"><input type="text" id="end-addr" value="${defaultEnd}" style="width:100%; padding:8px; margin:5px 0;"><div style="display:flex; gap:10px; margin-top:15px;"><button style="flex:1; padding:10px; border:none; border-radius:6px;" onclick="document.getElementById('modal-overlay').style.display='none'">Cancel</button><button style="flex:1; padding:10px; border:none; border-radius:6px; background:var(--blue); color:white; font-weight:bold;" onclick="finalizeSync('${type}')">Submit</button></div>`;
+        const defS = stops.length ? stops[0].address : "", defE = stops.length ? stops[stops.length-1].address : "";
+        document.getElementById('modal-content').innerHTML = `<h3 style="margin:0">Update Route</h3><select id="start-time-select" style="width:100%; padding:8px; margin:5px 0;">${tOpt}</select><input type="text" id="start-addr" value="${defS}" style="width:100%; padding:8px; margin:5px 0;"><input type="text" id="end-addr" value="${defE}" style="width:100%; padding:8px; margin:5px 0;"><div style="display:flex; gap:10px; margin-top:15px;"><button style="flex:1; padding:10px; border:none; border-radius:6px;" onclick="document.getElementById('modal-overlay').style.display='none'">Cancel</button><button style="flex:1; padding:10px; border:none; border-radius:6px; background:var(--blue); color:white; font-weight:bold;" onclick="finalizeSync('${type}')">Submit</button></div>`;
     }
 
     async function finalizeSync(type) {

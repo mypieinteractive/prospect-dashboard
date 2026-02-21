@@ -13,44 +13,42 @@
     <style>
         :root { --blue: #2b579a; --red: #d93025; --green: #28a745; --purple: #6C5C99; }
         * { box-sizing: border-box; font-family: Calibri, 'Candara', 'Segoe UI', sans-serif; }
-        body { margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; background: #fff; overflow: hidden; }
         
-        #map-wrapper { height: 45vh; width: 100%; position: relative; border-bottom: 2px solid #ccc; background-color: #f0f0f0; }
+        /* RIGID LAYOUT TO PREVENT MAP DISAPPEARING */
+        body { margin: 0; padding: 0; height: 100vh; width: 100vw; display: flex; flex-direction: column; background: #fff; overflow: hidden; }
+        
+        #map-wrapper { 
+            height: 45vh; 
+            min-height: 45vh;
+            width: 100%; 
+            position: relative; 
+            border-bottom: 2px solid #ccc;
+            background-color: #efefef; 
+        }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; height: 100%; }
         
-        #sidebar { flex: 1; display: flex; flex-direction: column; background: white; z-index: 10; border-top: 3px solid #ddd; position: relative; }
+        #sidebar { 
+            height: 55vh; 
+            min-height: 55vh;
+            display: flex; 
+            flex-direction: column; 
+            background: white; 
+            z-index: 10; 
+        }
+
         #stop-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
-        /* REFINED TILE STRUCTURE */
-        .stop-item { display: flex; align-items: stretch; border-bottom: 1px solid #eee; background: white; min-height: 80px; }
+        /* TILE STRUCTURE */
+        .stop-item { display: flex; align-items: stretch; border-bottom: 1px solid #eee; background: white; min-height: 85px; }
         .stop-item.completed { opacity: 0.5; background: #f9f9f9; }
         .stop-item.highlight { background: #fff9c4 !important; }
 
-        /* LEFT SIDEBAR: STOP NUMBER */
-        .stop-sidebar { 
-            width: 45px; 
-            background-color: var(--purple); 
-            color: white; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            font-weight: bold; 
-            font-size: 18px; 
-        }
+        .stop-sidebar { width: 45px; background-color: var(--purple); color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; }
+        .handle { padding: 0 8px; color: #ccc; cursor: grab; font-size: 18px; display: flex; align-items: center; }
 
-        .handle { padding: 15px 10px; color: #ccc; cursor: grab; font-size: 18px; display: flex; align-items: center; }
-
-        /* MIDDLE CONTENT */
-        .stop-content { flex: 1; padding: 10px 5px; display: flex; flex-direction: column; justify-content: center; }
-        .stop-content b { font-size: 16px; color: #333; display: block; line-height: 1.2; }
-        .row-meta { font-size: 13px; color: #666; margin-top: 3px; }
-        .row-details { font-size: 12px; color: #888; margin-top: 2px; }
-
-        /* RIGHT ACTIONS */
-        .stop-actions { display: flex; align-items: center; padding-right: 10px; gap: 5px; }
-        
-        /* CSV TYPE BOX */
+        /* CSV APP BOX (NON-CLICKABLE) */
         .csv-box { 
+            align-self: center;
             width: 32px; height: 32px; 
             border: 2px solid var(--blue); 
             color: var(--blue); 
@@ -60,20 +58,25 @@
             font-weight: bold; 
             font-size: 11px; 
             border-radius: 4px; 
-            cursor: pointer;
-            margin-right: 5px;
+            margin: 0 10px;
+            pointer-events: none; /* Disables clicking */
         }
 
-        .icon-btn { font-size: 28px; cursor: pointer; padding: 5px; }
+        .stop-content { flex: 1; padding: 10px 0; display: flex; flex-direction: column; justify-content: center; }
+        .stop-content b { font-size: 16px; color: #333; display: block; line-height: 1.2; }
+        .row-meta { font-size: 13px; color: #666; margin-top: 3px; }
+        .row-details { font-size: 12px; color: #888; margin-top: 2px; }
+
+        .stop-actions { display: flex; align-items: center; padding-right: 10px; gap: 5px; }
+        .icon-btn { font-size: 32px; cursor: pointer; padding: 5px; }
         .check-icon { color: var(--green); }
         .nav-icon { color: var(--blue); }
 
         #controls { display: none; padding: 10px; background: #f1f4f9; border-bottom: 1px solid #ddd; align-items: center; justify-content: center; gap: 10px; }
         .marker { width: 32px; height: 32px; background: var(--red); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; }
+        
         #modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index: 2000; display:none; align-items:center; justify-content:center; }
         .modal-box { background:white; padding:25px; border-radius:12px; width:85%; max-width:340px; text-align: center; }
-        select, input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 6px; font-size: 15px; }
-        .modal-btn { padding: 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 15px; flex: 1; }
     </style>
 </head>
 <body>
@@ -104,10 +107,13 @@
         container: 'map',
         style: 'mapbox://styles/mapbox/streets-v12',
         center: [-96.797, 32.776],
-        zoom: 11
+        zoom: 11,
+        trackResize: true
     });
 
-    map.on('load', () => { map.resize(); });
+    // Ensure map resizes whenever data is loaded or window changes
+    window.addEventListener('resize', () => map.resize());
+    map.on('load', () => map.resize());
 
     let stops = [];
     let markers = [];
@@ -123,6 +129,8 @@
                 defaultEnd = stops[stops.length - 1].address;
             }
             render();
+            // Force one more resize after render
+            setTimeout(() => map.resize(), 500);
         } catch (e) { console.error("Data load failed", e); }
     }
 
@@ -136,19 +144,18 @@
             item.className = `stop-item ${s.status}`;
             item.id = `item-${s.id}`;
             
-            // Format App Label (2 chars)
             const appLabel = (s.client && s.client.length >= 2) ? s.client.substring(0,2).toUpperCase() : "??";
 
             item.innerHTML = `
                 <div class="stop-sidebar">${i + 1}</div>
                 <div class="handle">☰</div>
+                <div class="csv-box">${appLabel}</div>
                 <div class="stop-content" onclick="focusItem('${s.id}')">
                     <b>${s.address.split(',')[0]}</b>
                     <div class="row-meta">${s.eta} | ${s.dist}</div>
                     <div class="row-details">${s.type}</div>
                 </div>
                 <div class="stop-actions">
-                    <div class="csv-box" onclick="openVendorApp('${s.client}')">${appLabel}</div>
                     <i class="fa-solid fa-circle-check icon-btn check-icon" onclick="toggleComplete('${s.id}')"></i>
                     <i class="fa-solid fa-location-arrow icon-btn nav-icon" onclick="openNav('${s.lat}','${s.lng}')"></i>
                 </div>
@@ -180,10 +187,6 @@
         map.flyTo({ center: [stop.lng, stop.lat], zoom: 16 });
     }
 
-    function openVendorApp(appName) {
-        alert("Navigating to " + appName + " (Link to be added in Sheet settings)");
-    }
-
     function openNav(lat, lng) {
         let pref = localStorage.getItem('navPref');
         if (!pref) { showNavChoice(lat, lng); } else { launchMaps(pref, lat, lng); }
@@ -192,7 +195,7 @@
     function showNavChoice(lat, lng) {
         const modal = document.getElementById('modal-overlay');
         modal.style.display = 'flex';
-        document.getElementById('modal-content').innerHTML = `<h3>Select your preferred Maps App:</h3><div style="display:flex; flex-direction:column; gap:10px; margin-top:20px;"><button class="modal-btn" style="background:var(--blue); color:white;" onclick="setNavPref('google','${lat}','${lng}')">Google Maps</button><button class="modal-btn" style="background:#eee; color:#333;" onclick="setNavPref('apple','${lat}','${lng}')">Apple Maps</button></div>`;
+        document.getElementById('modal-content').innerHTML = `<h3>Select your preferred Maps App:</h3><div style="display:flex; flex-direction:column; gap:10px; margin-top:20px;"><button style="padding:12px; border:none; border-radius:6px; font-weight:bold; background:var(--blue); color:white;" onclick="setNavPref('google','${lat}','${lng}')">Google Maps</button><button style="padding:12px; border:none; border-radius:6px; font-weight:bold; background:#eee;" onclick="setNavPref('apple','${lat}','${lng}')">Apple Maps</button></div>`;
     }
 
     function setNavPref(pref, lat, lng) {
@@ -214,7 +217,7 @@
             let hr = h > 12 ? h-12 : h; let ampm = h >= 12 ? 'PM' : 'AM';
             timeOptions += `<option value="${hr}:00 ${ampm}">${hr}:00 ${ampm}</option><option value="${hr}:30 ${ampm}">${hr}:30 ${ampm}</option>`;
         }
-        document.getElementById('modal-content').innerHTML = `<h3 style="margin-top:0">${type === 'optimize' ? 'Re-Optimize Route' : 'Update Times'}</h3><label style="display:block; text-align:left; font-weight:bold; font-size:14px;">Start Time:</label><select id="start-time-select">${timeOptions}</select><label style="display:block; text-align:left; font-weight:bold; font-size:14px; margin-top:10px;">Start Address:</label><input type="text" id="start-addr" value="${defaultStart}"><label style="display:block; text-align:left; font-weight:bold; font-size:14px; margin-top:10px;">End Address:</label><input type="text" id="end-addr" value="${defaultEnd}"><div style="display:flex; gap:10px; margin-top:20px;"><button class="modal-btn" onclick="document.getElementById('modal-overlay').style.display='none'">Cancel</button><button class="modal-btn" style="background:var(--blue); color:white;" onclick="finalizeSync('${type}')">Submit</button></div>`;
+        document.getElementById('modal-content').innerHTML = `<h3 style="margin-top:0">${type === 'optimize' ? 'Re-Optimize Route' : 'Update Times'}</h3><label style="display:block; text-align:left; font-weight:bold; font-size:14px;">Start Time:</label><select id="start-time-select" style="width:100%; padding:10px; margin:5px 0;">${timeOptions}</select><label style="display:block; text-align:left; font-weight:bold; font-size:14px; margin-top:10px;">Start Address:</label><input type="text" id="start-addr" value="${defaultStart}" style="width:100%; padding:10px; margin:5px 0;"><label style="display:block; text-align:left; font-weight:bold; font-size:14px; margin-top:10px;">End Address:</label><input type="text" id="end-addr" value="${defaultEnd}" style="width:100%; padding:10px; margin:5px 0;"><div style="display:flex; gap:10px; margin-top:20px;"><button style="flex:1; padding:12px; border:none; border-radius:6px;" onclick="document.getElementById('modal-overlay').style.display='none'">Cancel</button><button style="flex:1; padding:12px; border:none; border-radius:6px; background:var(--blue); color:white; font-weight:bold;" onclick="finalizeSync('${type}')">Submit</button></div>`;
     }
 
     async function finalizeSync(type) {

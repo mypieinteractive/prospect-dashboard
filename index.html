@@ -29,6 +29,12 @@
         * { box-sizing: border-box; font-family: Calibri, 'Candara', 'Segoe UI', sans-serif; }
         body { margin: 0; padding: 0; height: 100vh; width: 100vw; display: flex; background: var(--bg-base); color: var(--text-main); overflow: hidden; }
         
+        /* SHIFT-CLICK HIGHLIGHT FIX */
+        .stop-item, .glide-row, .marker, .glide-table-header {
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
         /* VIEW MODES */
         body.view-driver { flex-direction: column; }
         .view-driver #map-wrapper { height: 35vh; min-height: 35vh; width: 100%; border-bottom: 2px solid var(--border-color); }
@@ -46,10 +52,11 @@
         body.view-list #map-wrapper { display: none !important; }
         body.view-list #sidebar { width: 100vw; height: 100vh; max-width: none; border-right: none; }
 
-        /* MANAGER MAP VIEW */
-        body.view-managermap #sidebar { display: none !important; }
-        body.view-managermap #map-wrapper { height: 100vh; width: 100vw; }
-        body.view-managermap #bulk-complete-btn { display: none !important; }
+        /* MANAGER VIEW */
+        body.view-manager { flex-direction: row; }
+        body.view-manager #map-wrapper { width: 50vw; height: 100vh; }
+        body.view-manager #sidebar { width: 50vw; height: 100vh; border-left: 2px solid var(--border-color); }
+        body.view-manager #bulk-complete-btn { display: none !important; }
 
         #map-wrapper { position: relative; background-color: var(--bg-base); }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; height: 100%; }
@@ -117,7 +124,7 @@
         .stop-actions { display: flex; align-items: center; padding-right: 8px; gap: 4px; }
         .icon-btn { font-size: 28px; cursor: pointer; padding: 4px; }
 
-        /* GLIDE TABLE UI (List View) */
+        /* GLIDE TABLE UI (List & Manager View) */
         .glide-table-header { display: flex; padding: 12px 10px; font-weight: bold; border-bottom: 1px solid var(--border-color); color: var(--text-muted); font-size: 12px; text-transform: uppercase; background: var(--bg-base); position: sticky; top: 0; z-index: 5; }
         .glide-row { display: flex; padding: 12px 10px; border-bottom: 1px solid #282828; font-size: 14px; color: var(--text-main); align-items: center; cursor: pointer; background: var(--bg-panel); transition: background 0.2s; }
         .glide-row:hover { background: var(--bg-hover); }
@@ -126,11 +133,13 @@
         
         .col-num { width: 40px; color: var(--text-muted); font-size: 12px; }
         .col-due { width: 100px; display: flex; align-items: center; gap: 6px; font-weight: 500;}
-        .col-insp { width: 120px; color: var(--text-muted); }
+        .col-insp { width: 130px; color: var(--text-muted); padding-right: 10px; }
         .col-addr { flex: 2; min-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 15px; font-weight: 500; }
         .col-app { width: 60px; color: var(--text-muted); }
         .col-client { width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 15px; }
         .col-type { flex: 2; min-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-muted); }
+
+        .insp-select { width: 100%; background: var(--bg-base); color: var(--text-main); border: 1px solid var(--border-color); padding: 4px; border-radius: 4px; font-size: 13px; cursor: pointer; }
 
         /* MARKERS */
         .marker { position: absolute !important; width: 28px; height: 28px; background: var(--red); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; border: 2px solid var(--bg-panel); font-size: 12px; cursor: pointer; }
@@ -203,12 +212,12 @@
     const routeId = params.get('id');
     const driverParam = params.get('driver');
     const companyParam = params.get('company');
-    const viewMode = params.get('view') || 'driver'; // Supports 'driver', 'admin', 'map', 'list', 'managermap'
+    const viewMode = params.get('view') || 'driver'; // Supports 'driver', 'admin', 'map', 'list', 'manager'
     
     document.body.className = `view-${viewMode}`;
 
-    // Adjust UI elements specifically for managermap view
-    if (viewMode === 'managermap') {
+    // Adjust UI elements specifically for manager view
+    if (viewMode === 'manager') {
         document.getElementById('bulk-remove-btn').innerText = 'Remove selected';
     }
 
@@ -222,7 +231,7 @@
         attributionControl: false 
     });
 
-    let stops = [], originalStops = [], markers = [], initialBounds = null, selectedIds = new Set(), currentDisplayMode = 'detailed', currentStartTime = "8:00 AM";
+    let stops = [], originalStops = [], inspectors = [], markers = [], initialBounds = null, selectedIds = new Set(), currentDisplayMode = 'detailed', currentStartTime = "8:00 AM";
 
     // --- DATA FETCHING & API SYNC ---
     async function loadData() {
@@ -234,7 +243,17 @@
 
         try {
             const res = await fetch(`${WEB_APP_URL}${queryParams}`);
-            const rawStops = await res.json();
+            const data = await res.json();
+            
+            let rawStops = [];
+            
+            // Handle the new object format from App Script V183.2
+            if (Array.isArray(data)) {
+                rawStops = data; // Legacy isolated route snapshot format
+            } else {
+                rawStops = data.stops || [];
+                inspectors = data.inspectors || []; // Load the fetched inspectors
+            }
             
             // Map the new flat structure to ensure id matches rowId for frontend logic
             stops = rawStops.map(s => ({
@@ -245,8 +264,8 @@
             originalStops = JSON.parse(JSON.stringify(stops)); 
             if (stops.length > 0) currentStartTime = stops[0].eta || "8:00 AM";
             
-            // Hide rocker toggle in map, list, or managermap view if unnecessary
-            if(viewMode === 'map' || viewMode === 'list' || viewMode === 'managermap') {
+            // Hide rocker toggle in map, list, or manager view if unnecessary
+            if(viewMode === 'map' || viewMode === 'list' || viewMode === 'manager') {
                 document.querySelector('.rocker').style.display = 'none';
             }
 
@@ -278,7 +297,7 @@
             if (stopIdx > -1) {
                 stops[stopIdx].driverName = newDriverName;
                 stops[stopIdx].driverId = newDriverId;
-                render(); 
+                // No need to re-render the whole list, the select element already updated visually
             }
 
             const payload = { 
@@ -294,6 +313,24 @@
             console.error("Failed to reassign driver", e);
             alert("Network error: Failed to update order. Please refresh.");
         }
+    }
+
+    // Handles changing dropdown selection
+    function handleInspectorChange(e, rowId, selectEl) {
+        e.stopPropagation(); // Prevents clicking the dropdown from selecting the row
+        const newDriverId = selectEl.value;
+        const newDriverName = selectEl.options[selectEl.selectedIndex].text;
+        
+        // Show processing overlay immediately to provide feedback
+        const overlay = document.getElementById('processing-overlay');
+        if(overlay) overlay.style.display = 'flex';
+        
+        processReassignDriver(rowId, newDriverName, newDriverId).then(() => {
+            // Keep overlay for 3 seconds to allow glide to catch up
+            setTimeout(() => {
+                if(overlay) overlay.style.display = 'none';
+            }, 3000);
+        });
     }
 
 
@@ -312,8 +349,8 @@
         markers = [];
         const bounds = new mapboxgl.LngLatBounds();
 
-        // If in list view, generate the Glide-style table header
-        if (viewMode === 'list') {
+        // If in list or manager view, generate the Glide-style table header
+        if (viewMode === 'list' || viewMode === 'manager') {
             const header = document.createElement('div');
             header.className = 'glide-table-header';
             header.innerHTML = `
@@ -337,22 +374,40 @@
             const isLate = (due && due <= new Date());
             const dueFmt = due ? `${due.getMonth()+1}/${due.getDate()}` : "N/A";
 
-            if (viewMode === 'list') {
+            if (viewMode === 'list' || viewMode === 'manager') {
                 // GLIDE STYLE TABLE ROW
                 item.className = `glide-row ${s.status}`;
                 const warnIcon = isLate ? `<span style="color:var(--orange); font-size:16px;">⚠️</span>` : '';
                 
+                // Construct the inspector column (interactive dropdown in manager view, static text in list view)
+                let inspectorHtml = `<div class="col-insp">${s.driverName || driverParam || 'Unassigned'} <i class="fa-solid fa-chevron-down" style="font-size:10px; opacity:0.5; margin-left:4px;"></i></div>`;
+                
+                if (viewMode === 'manager' && inspectors.length > 0) {
+                    const optionsHtml = inspectors.map(insp => 
+                        `<option value="${insp.id}" ${s.driverId === insp.id ? 'selected' : ''}>${insp.name}</option>`
+                    ).join('');
+                    
+                    inspectorHtml = `
+                        <div class="col-insp">
+                            <select class="insp-select" onclick="event.stopPropagation()" onchange="handleInspectorChange(event, '${s.id}', this)">
+                                <option value="">Unassigned</option>
+                                ${optionsHtml}
+                            </select>
+                        </div>
+                    `;
+                }
+
                 item.innerHTML = `
                     <div class="col-num">${i + 1}</div>
                     <div class="col-due">${warnIcon}${dueFmt}</div>
-                    <div class="col-insp">${s.driverName || driverParam || 'Unassigned'} <i class="fa-solid fa-chevron-down" style="font-size:10px; opacity:0.5; margin-left:4px;"></i></div>
+                    ${inspectorHtml}
                     <div class="col-addr">${(s.address||'').split(',')[0]}</div>
                     <div class="col-app">IA</div>
                     <div class="col-client">${s.client || '--'}</div>
                     <div class="col-type">${s.type || '--'}</div>
                 `;
             } else {
-                // STANDARD TILE ROW
+                // STANDARD TILE ROW (Driver/Admin)
                 item.className = `stop-item ${s.status} ${currentDisplayMode}`;
                 const metaDisplay = isDraft ? '-- | --' : `${s.eta || '--'} | ${s.dist || '--'}`;
                 item.innerHTML = `
@@ -478,8 +533,8 @@
     function filterList() { const q = document.getElementById('search-input').value.toLowerCase(); document.querySelectorAll('.stop-item, .glide-row').forEach(el => el.style.display = el.getAttribute('data-search').includes(q) ? 'flex' : 'none'); }
     
     function drawRoute() { 
-        // Skip drawing routing lines if in managermap view
-        if (viewMode === 'managermap') {
+        // Skip drawing routing lines if in manager view
+        if (viewMode === 'manager') {
             if (map.getSource('route')) {
                 map.getSource('route').setData({ "type": "Feature", "geometry": { "type": "LineString", "coordinates": [] } });
             }
@@ -556,8 +611,8 @@
         } catch (e) { alert("Sync Failed."); }
     }
 
-    // Only enable sorting if not in list view, as list view styling doesn't include the drag handle easily
-    if (viewMode !== 'list') {
+    // Only enable sorting if not in list or manager view, as those stylings don't include the drag handle easily
+    if (viewMode !== 'list' && viewMode !== 'manager') {
         Sortable.create(document.getElementById('stop-list'), {
             handle: '.handle', animation: 150,
             onEnd: (evt) => {

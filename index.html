@@ -175,10 +175,10 @@
         .num-badge.due-today { background-color: var(--orange); }
         .num-badge.past-due { background-color: var(--red); }
 
-        .col-due { width: 100px; display: flex; align-items: center; gap: 6px; font-weight: 500; flex-shrink: 0;}
+        .col-due { width: 70px; display: flex; align-items: center; justify-content: center; gap: 4px; font-weight: 500; flex-shrink: 0;}
         .col-insp { width: 140px; color: var(--text-muted); padding-right: 10px; flex-shrink: 0; }
         .col-addr { flex: 2; min-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 15px; font-weight: 500; }
-        .col-app { width: 60px; color: var(--text-muted); flex-shrink: 0; }
+        .col-app { width: 60px; color: var(--text-muted); flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
         .col-client { width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 15px; flex-shrink: 0; }
         .col-type { flex: 2; min-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-muted); }
 
@@ -480,14 +480,14 @@
         const bounds = new mapboxgl.LngLatBounds();
         
         const today = new Date();
-        today.setHours(0, 0, 0, 0); // Strip time for strictly day-level comparisons
+        today.setHours(0, 0, 0, 0);
 
         if (viewMode === 'list' || viewMode === 'manager') {
             const header = document.createElement('div');
             header.className = 'glide-table-header';
             header.innerHTML = `
                 <div class="col-num"></div>
-                <div class="col-due sortable" onclick="sortTable('dueDate')">Due Date ${getSortIcon('dueDate')}</div>
+                <div class="col-due sortable" onclick="sortTable('dueDate')">Due ${getSortIcon('dueDate')}</div>
                 <div class="col-insp sortable" onclick="sortTable('driverName')">Inspector ${getSortIcon('driverName')}</div>
                 <div class="col-addr sortable" onclick="sortTable('address')">Address ${getSortIcon('address')}</div>
                 <div class="col-app">App</div>
@@ -502,17 +502,16 @@
             item.id = `item-${s.id}`;
             item.setAttribute('data-search', `${(s.address||'').toLowerCase()} ${(s.client||'').toLowerCase()}`);
             
-            // Analyze date urgency for coloring
             const due = s.dueDate ? new Date(s.dueDate) : null;
             let urgencyClass = '';
             
             if (due) {
                 const dueTime = new Date(due);
-                dueTime.setHours(0, 0, 0, 0); // Strip time to compare just the date
+                dueTime.setHours(0, 0, 0, 0); 
                 if (dueTime < today) {
-                    urgencyClass = 'past-due'; // Strictly older than today
+                    urgencyClass = 'past-due'; 
                 } else if (dueTime.getTime() === today.getTime()) {
-                    urgencyClass = 'due-today'; // Exactly today
+                    urgencyClass = 'due-today'; 
                 }
             }
             
@@ -579,7 +578,6 @@
             if(s.lng && s.lat) {
                 const el = document.createElement('div');
                 el.className = `marker ${s.status}`; el.innerHTML = `<span>${i + 1}</span>`;
-                // Optionally could add color warning to map markers too if desired
                 if (urgencyClass) {
                     const w = document.createElement('div'); w.className = 'marker-warning'; w.innerText = '⚠️';
                     el.appendChild(w);

@@ -188,7 +188,8 @@
     
     const params = new URLSearchParams(window.location.search);
     const routeId = params.get('id');
-    const driver = params.get('driver');
+    const driverParam = params.get('driver');
+    const companyParam = params.get('company');
     const viewMode = params.get('view') || 'driver'; // Supports 'driver', 'admin', 'map', 'list'
     
     document.body.className = `view-${viewMode}`;
@@ -205,12 +206,24 @@
 
     let stops = [], originalStops = [], markers = [], initialBounds = null, selectedIds = new Set(), currentDisplayMode = 'detailed', currentStartTime = "8:00 AM";
 
-    // --- RENDERING ---
+    // --- DATA FETCHING & API SYNC ---
     async function loadData() {
-        if (!routeId) return;
+        let queryParams = '';
+        if (companyParam) queryParams = `?company=${companyParam}`;
+        else if (driverParam) queryParams = `?driver=${driverParam}`;
+        else if (routeId) queryParams = `?id=${routeId}`;
+        else return; // No parameters to load
+
         try {
-            const res = await fetch(`${WEB_APP_URL}?id=${routeId}`);
-            stops = await res.json();
+            const res = await fetch(`${WEB_APP_URL}${queryParams}`);
+            const rawStops = await res.json();
+            
+            // Map the new flat structure to ensure id matches rowId for frontend logic
+            stops = rawStops.map(s => ({
+                ...s,
+                id: s.rowId || s.id // Alias for backward compatibility with map engine
+            }));
+
             originalStops = JSON.parse(JSON.stringify(stops)); 
             if (stops.length > 0) currentStartTime = stops[0].eta || "8:00 AM";
             
@@ -220,9 +233,53 @@
             }
 
             render(); drawRoute(); updateSummary();
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error("Error loading data:", e); }
     }
 
+    async function processDeleteOrder(rowId) {
+        try {
+            // Optimistic UI Removal
+            stops = stops.filter(s => s.id !== rowId);
+            render(); drawRoute(); updateSummary();
+
+            const payload = { action: 'deleteOrder', rowId: rowId };
+            await fetch(WEB_APP_URL, {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+        } catch(e) {
+            console.error("Failed to delete order", e);
+            alert("Network error: Failed to delete order. Please refresh.");
+        }
+    }
+
+    async function processReassignDriver(rowId, newDriverName, newDriverId) {
+        try {
+            // Optimistic UI Update
+            const stopIdx = stops.findIndex(s => s.id === rowId);
+            if (stopIdx > -1) {
+                stops[stopIdx].driverName = newDriverName;
+                stops[stopIdx].driverId = newDriverId;
+                render(); 
+            }
+
+            const payload = { 
+                action: 'updateOrder', 
+                rowId: rowId, 
+                updates: { "HKAwZ": newDriverName, "xuPjx": newDriverId } 
+            };
+            await fetch(WEB_APP_URL, {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+        } catch(e) {
+            console.error("Failed to reassign driver", e);
+            alert("Network error: Failed to update order. Please refresh.");
+        }
+    }
+
+
+    // --- RENDERING ---
     function setDisplayMode(mode) {
         currentDisplayMode = mode;
         document.getElementById('btn-detailed').classList.toggle('active', mode === 'detailed');
@@ -270,8 +327,8 @@
                 item.innerHTML = `
                     <div class="col-num">${i + 1}</div>
                     <div class="col-due">${warnIcon}${dueFmt}</div>
-                    <div class="col-insp">${driver || 'Kelly'} <i class="fa-solid fa-chevron-down" style="font-size:10px; opacity:0.5; margin-left:4px;"></i></div>
-                    <div class="col-addr">${s.address.split(',')[0]}</div>
+                    <div class="col-insp">${s.driverName || driverParam || 'Unassigned'} <i class="fa-solid fa-chevron-down" style="font-size:10px; opacity:0.5; margin-left:4px;"></i></div>
+                    <div class="col-addr">${(s.address||'').split(',')[0]}</div>
                     <div class="col-app">IA</div>
                     <div class="col-client">${s.client || '--'}</div>
                     <div class="col-type">${s.type || '--'}</div>
@@ -279,15 +336,15 @@
             } else {
                 // STANDARD TILE ROW
                 item.className = `stop-item ${s.status} ${currentDisplayMode}`;
-                const metaDisplay = isDraft ? '-- | --' : `${s.eta} | ${s.dist}`;
+                const metaDisplay = isDraft ? '-- | --' : `${s.eta || '--'} | ${s.dist || '--'}`;
                 item.innerHTML = `
                     <div class="stop-sidebar ${isLate?'urgent':''}">${i + 1}</div>
                     <div class="handle">☰</div>
                     <div class="csv-box">${(s.client||"??").substring(0,2).toUpperCase()}</div>
                     <div class="stop-content">
-                        <b>${s.address.split(',')[0]}</b>
+                        <b>${(s.address||'').split(',')[0]}</b>
                         <div class="row-meta">${metaDisplay}</div>
-                        <div class="row-details">${s.type}</div>
+                        <div class="row-details">${s.type || ''}</div>
                     </div>
                     <div class="due-date-container ${isLate?'urgent':''}">${dueFmt}</div>
                     <div class="stop-actions">
@@ -305,22 +362,24 @@
             list.appendChild(item);
 
             // Create Map Markers
-            const el = document.createElement('div');
-            el.className = `marker ${s.status}`; el.innerHTML = `<span>${i + 1}</span>`;
-            if (isLate) {
-                const w = document.createElement('div'); w.className = 'marker-warning'; w.innerText = '⚠️';
-                el.appendChild(w);
+            if(s.lng && s.lat) {
+                const el = document.createElement('div');
+                el.className = `marker ${s.status}`; el.innerHTML = `<span>${i + 1}</span>`;
+                if (isLate) {
+                    const w = document.createElement('div'); w.className = 'marker-warning'; w.innerText = '⚠️';
+                    el.appendChild(w);
+                }
+                el.onclick = (e) => {
+                    e.stopPropagation();
+                    if (!e.shiftKey) selectedIds.clear();
+                    selectedIds.has(s.id) ? selectedIds.delete(s.id) : selectedIds.add(s.id);
+                    updateSelectionUI(); focusTile(s.id);
+                };
+                const m = new mapboxgl.Marker({ element: el, anchor: 'center' }).setLngLat([s.lng, s.lat]).addTo(map);
+                m._stopId = s.id; markers.push(m); bounds.extend([s.lng, s.lat]);
             }
-            el.onclick = (e) => {
-                e.stopPropagation();
-                if (!e.shiftKey) selectedIds.clear();
-                selectedIds.has(s.id) ? selectedIds.delete(s.id) : selectedIds.add(s.id);
-                updateSelectionUI(); focusTile(s.id);
-            };
-            const m = new mapboxgl.Marker({ element: el, anchor: 'center' }).setLngLat([s.lng, s.lat]).addTo(map);
-            m._stopId = s.id; markers.push(m); bounds.extend([s.lng, s.lat]);
         });
-        if (stops.length > 0) { initialBounds = bounds; map.fitBounds(bounds, { padding: 50, maxZoom: 15 }); }
+        if (stops.filter(s=> s.lng && s.lat).length > 0) { initialBounds = bounds; map.fitBounds(bounds, { padding: 50, maxZoom: 15 }); }
     }
 
     function updateSummary() {
@@ -340,7 +399,7 @@
         try {
             const res = await fetch(WEB_APP_URL, { 
                 method: 'POST', 
-                body: JSON.stringify({ action: 'calculate', routeId, driver, stops, startTime: currentStartTime }) 
+                body: JSON.stringify({ action: 'calculate', driver: driverParam, stops, startTime: currentStartTime }) 
             });
             const data = await res.json();
             stops = data.updatedStops;
@@ -393,18 +452,37 @@
 
     // --- SHARED UTILS ---
     function focusPin(id) { 
-        map.flyTo({ center: [stops.find(s=>s.id==id).lng, stops.find(s=>s.id==id).lat] }); 
+        const tgt = stops.find(s=>s.id==id);
+        if(tgt && tgt.lng && tgt.lat) map.flyTo({ center: [tgt.lng, tgt.lat] }); 
     }
     function focusTile(id) { document.getElementById(`item-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
     function resetMapView() { if (initialBounds) map.fitBounds(initialBounds, { padding: 50, maxZoom: 15 }); }
     function filterList() { const q = document.getElementById('search-input').value.toLowerCase(); document.querySelectorAll('.stop-item, .glide-row').forEach(el => el.style.display = el.getAttribute('data-search').includes(q) ? 'flex' : 'none'); }
-    function drawRoute() { const act = stops.filter(s => s.status !== 'cancelled'); if (act.length < 2) return; const crd = act.map(s => [s.lng, s.lat]); if (map.getSource('route')) map.getSource('route').setData({ "type": "Feature", "geometry": { "type": "LineString", "coordinates": crd } }); else { map.addSource('route', { "type": "geojson", "data": { "type": "Feature", "geometry": { "type": "LineString", "coordinates": crd } } }); map.addLayer({ "id": "route", "type": "line", "source": "route", "layout": { "line-join": "round", "line-cap": "round" }, "paint": { "line-color": "#3b71ca", "line-width": 4, "line-opacity": 0.5 } }); } }
+    function drawRoute() { const act = stops.filter(s => s.status !== 'cancelled' && s.lng && s.lat); if (act.length < 2) return; const crd = act.map(s => [s.lng, s.lat]); if (map.getSource('route')) map.getSource('route').setData({ "type": "Feature", "geometry": { "type": "LineString", "coordinates": crd } }); else { map.addSource('route', { "type": "geojson", "data": { "type": "Feature", "geometry": { "type": "LineString", "coordinates": crd } } }); map.addLayer({ "id": "route", "type": "line", "source": "route", "layout": { "line-join": "round", "line-cap": "round" }, "paint": { "line-color": "#3b71ca", "line-width": 4, "line-opacity": 0.5 } }); } }
     function openNav(e, la, ln) { e.stopPropagation(); let p = localStorage.getItem('navPref'); if (!p) { showNavChoice(la, ln); } else { launchMaps(p, la, ln); } }
     function showNavChoice(la, ln) { const m = document.getElementById('modal-overlay'); m.style.display = 'flex'; document.getElementById('modal-content').innerHTML = `<h3>Maps Preference:</h3><div style="display:flex; flex-direction:column; gap:8px;"><button style="padding:12px; border:none; border-radius:6px; background:var(--blue); color:white; font-weight:bold;" onclick="setNavPref('google','${la}','${ln}')">Google Maps</button><button style="padding:12px; border:none; border-radius:6px; background:#444; color:#fff" onclick="setNavPref('apple','${la}','${ln}')">Apple Maps</button></div>`; }
     function setNavPref(p, la, ln) { localStorage.setItem('navPref', p); document.getElementById('modal-overlay').style.display = 'none'; launchMaps(p, la, ln); }
     function launchMaps(p, la, ln) { window.location.href = p === 'google' ? `comgooglemaps://?daddr=${la},${ln}` : `maps://maps.apple.com/?daddr=${la},${ln}`; }
-    function triggerBulkDelete() { if(confirm("Remove selected?")) { selectedIds.forEach(id => { stops.find(s => s.id == id).status = 'cancelled'; }); selectedIds.clear(); render(); drawRoute(); updateSelectionUI(); document.getElementById('controls').style.display = 'flex'; } }
-    function triggerBulkComplete() { if(confirm("Mark completed?")) { selectedIds.forEach(id => { stops.find(s => s.id == id).status = 'completed'; }); selectedIds.clear(); render(); drawRoute(); updateSelectionUI(); document.getElementById('controls').style.display = 'flex'; } }
+    
+    function triggerBulkDelete() { 
+        if(confirm("Remove selected?")) { 
+            // Trigger deletion via API for each selected ID
+            selectedIds.forEach(id => { 
+                processDeleteOrder(id);
+            }); 
+            selectedIds.clear(); 
+            updateSelectionUI(); 
+            document.getElementById('controls').style.display = 'flex'; 
+        } 
+    }
+    
+    function triggerBulkComplete() { 
+        if(confirm("Mark completed?")) { 
+            selectedIds.forEach(id => { stops.find(s => s.id == id).status = 'completed'; }); 
+            selectedIds.clear(); render(); drawRoute(); updateSelectionUI(); 
+            document.getElementById('controls').style.display = 'flex'; 
+        } 
+    }
 
     function showSyncOptions(type) {
         const modal = document.getElementById('modal-overlay'); modal.style.display = 'flex';
@@ -424,7 +502,7 @@
         const startAddr = document.getElementById('start-addr').value, endAddr = document.getElementById('end-addr').value;
         document.getElementById('modal-overlay').style.display = 'none';
         try {
-            const res = await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: type, routeId, driver, stops, startTime: currentStartTime, startAddr, endAddr }) });
+            const res = await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: type, driver: driverParam, stops, startTime: currentStartTime, startAddr, endAddr }) });
             const data = await res.json(); stops = data.updatedStops;
             document.getElementById('controls').style.display = 'none'; render(); drawRoute(); updateSummary();
         } catch (e) { alert("Sync Failed."); }

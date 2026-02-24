@@ -54,10 +54,23 @@
 
         /* MANAGER VIEW */
         body.view-manager { flex-direction: row; }
-        body.view-manager #map-wrapper { width: 50vw; height: 100vh; }
-        body.view-manager #sidebar { width: 50vw; height: 100vh; border-left: 2px solid var(--border-color); }
+        body.view-manager #map-wrapper { flex: 1; height: 100vh; width: auto; }
+        body.view-manager #sidebar { width: 50vw; min-width: 10vw; height: 100vh; border-left: none; flex: none; }
         body.view-manager #bulk-complete-btn { display: none !important; }
-        body.view-manager #route-summary { display: none !important; } /* Hide Summary bar in Manager mode */
+        body.view-manager #route-summary { display: none !important; }
+
+        /* RESIZER / SLIDER */
+        #resizer {
+            width: 6px;
+            background-color: var(--border-color);
+            cursor: col-resize;
+            display: none;
+            flex: none;
+            z-index: 100;
+            transition: background-color 0.2s;
+        }
+        #resizer:hover, #resizer.active { background-color: var(--blue); }
+        body.view-manager #resizer { display: block; }
 
         #map-wrapper { position: relative; background-color: var(--bg-base); }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; height: 100%; }
@@ -84,11 +97,25 @@
         #bulk-remove-btn { background: var(--red); color: white; border: none; }
         #bulk-complete-btn { background: var(--green); color: white; border: none; }
 
-        #sidebar { display: flex; flex-direction: column; background: var(--bg-panel); z-index: 10; }
+        /* SIDEBAR & CONTAINER QUERIES */
+        #sidebar { 
+            display: flex; flex-direction: column; background: var(--bg-panel); z-index: 10; 
+            container-type: inline-size; 
+            container-name: sidebar;
+            overflow-x: hidden; 
+        }
+        
         #search-container { padding: 8px; border-bottom: 1px solid var(--border-color); background: var(--bg-panel); }
         #search-input { width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-base); color: var(--text-main); }
         #search-input::placeholder { color: var(--text-muted); }
-        #stop-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; position: relative; }
+        #stop-list { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; position: relative; }
+
+        /* DYNAMIC COLUMN HIDING VIA CONTAINER QUERIES */
+        @container sidebar (max-width: 950px) { .col-type { display: none !important; } }
+        @container sidebar (max-width: 780px) { .col-client { display: none !important; } }
+        @container sidebar (max-width: 600px) { .col-app { display: none !important; } }
+        @container sidebar (max-width: 520px) { .col-due { display: none !important; } }
+        @container sidebar (max-width: 400px) { .col-insp { display: none !important; } }
 
         /* GLIDE STYLE BUTTONS */
         #controls { display: none; padding: 12px; background: var(--bg-base); border-bottom: 1px solid var(--border-color); flex-direction: column; gap: 8px; }
@@ -135,12 +162,12 @@
         .sortable { cursor: pointer; transition: color 0.2s; display: flex; align-items: center; }
         .sortable:hover { color: var(--text-main); }
         
-        .col-num { width: 40px; color: var(--text-muted); font-size: 12px; }
-        .col-due { width: 100px; display: flex; align-items: center; gap: 6px; font-weight: 500;}
-        .col-insp { width: 130px; color: var(--text-muted); padding-right: 10px; }
+        .col-num { width: 40px; color: var(--text-muted); font-size: 12px; flex-shrink: 0; }
+        .col-due { width: 100px; display: flex; align-items: center; gap: 6px; font-weight: 500; flex-shrink: 0;}
+        .col-insp { width: 140px; color: var(--text-muted); padding-right: 10px; flex-shrink: 0; }
         .col-addr { flex: 2; min-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 15px; font-weight: 500; }
-        .col-app { width: 60px; color: var(--text-muted); }
-        .col-client { width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 15px; }
+        .col-app { width: 60px; color: var(--text-muted); flex-shrink: 0; }
+        .col-client { width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 15px; flex-shrink: 0; }
         .col-type { flex: 2; min-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-muted); }
 
         /* Flat Dropdown Styling */
@@ -149,15 +176,13 @@
             background-color: var(--bg-panel); 
             color: var(--text-main); 
             border: 1px solid var(--border-color); 
-            padding: 6px 24px 6px 8px; /* Extra padding on right for the custom arrow */
+            padding: 6px 24px 6px 8px; 
             border-radius: 4px; 
             font-size: 13px; 
             cursor: pointer; 
-            /* Remove native OS glossy styling */
             -webkit-appearance: none;
             -moz-appearance: none;
             appearance: none;
-            /* Inject flat custom chevron */
             background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23888888%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
             background-repeat: no-repeat;
             background-position: right 8px center;
@@ -178,7 +203,9 @@
         .modal-box input { background: var(--bg-base); color: var(--text-main); border: 1px solid var(--border-color); }
 
         #processing-overlay {
-            display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; 
+            /* Changed from display: none to display: flex so it shows immediately on load */
+            display: flex; 
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; 
             background: rgba(0,0,0,0.8); z-index: 9999; align-items: center; justify-content: center; 
             color: white; font-size: 22px; font-weight: bold; letter-spacing: 1px;
         }
@@ -196,6 +223,8 @@
     </div>
     <div id="map"></div>
 </div>
+
+<div id="resizer"></div>
 
 <div id="sidebar">
     <div id="route-summary">
@@ -259,13 +288,51 @@
     let stops = [], originalStops = [], inspectors = [], markers = [], initialBounds = null, selectedIds = new Set(), currentDisplayMode = 'detailed', currentStartTime = "8:00 AM";
     let currentSort = { col: null, asc: true };
 
+    // --- RESIZER ENGINE ---
+    const resizerEl = document.getElementById('resizer');
+    const sidebarEl = document.getElementById('sidebar');
+    const mapWrapEl = document.getElementById('map-wrapper');
+    let isResizing = false;
+
+    resizerEl.addEventListener('mousedown', (e) => {
+        if(viewMode !== 'manager') return;
+        isResizing = true;
+        resizerEl.classList.add('active');
+        document.body.style.cursor = 'col-resize';
+        mapWrapEl.style.pointerEvents = 'none'; 
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+        let newWidth = window.innerWidth - e.clientX;
+        if (newWidth < 300) newWidth = 300;
+        if (newWidth > window.innerWidth - 300) newWidth = window.innerWidth - 300;
+        sidebarEl.style.width = newWidth + 'px';
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (isResizing) {
+            isResizing = false;
+            document.body.style.cursor = '';
+            resizerEl.classList.remove('active');
+            mapWrapEl.style.pointerEvents = 'auto';
+            if(map) map.resize(); 
+        }
+    });
+
+
     // --- DATA FETCHING & API SYNC ---
     async function loadData() {
         let queryParams = '';
         if (companyParam) queryParams = `?company=${companyParam}`;
         else if (driverParam) queryParams = `?driver=${driverParam}`;
         else if (routeId) queryParams = `?id=${routeId}`;
-        else return; // No parameters to load
+        else {
+            // Remove the initial processing overlay if there are no parameters provided
+            const overlay = document.getElementById('processing-overlay');
+            if (overlay) overlay.style.display = 'none';
+            return;
+        }
 
         try {
             const res = await fetch(`${WEB_APP_URL}${queryParams}`);
@@ -273,7 +340,6 @@
             
             let rawStops = [];
             
-            // Handle the new object format
             if (Array.isArray(data)) {
                 rawStops = data; 
             } else {
@@ -281,7 +347,6 @@
                 inspectors = data.inspectors || []; 
             }
             
-            // Map the new flat structure
             stops = rawStops.map(s => ({
                 ...s,
                 id: s.rowId || s.id 
@@ -290,13 +355,18 @@
             originalStops = JSON.parse(JSON.stringify(stops)); 
             if (stops.length > 0) currentStartTime = stops[0].eta || "8:00 AM";
             
-            // Hide rocker toggle in map, list, or manager view
             if(viewMode === 'map' || viewMode === 'list' || viewMode === 'manager') {
                 document.querySelector('.rocker').style.display = 'none';
             }
 
             render(); drawRoute(); updateSummary();
-        } catch (e) { console.error("Error loading data:", e); }
+        } catch (e) { 
+            console.error("Error loading data:", e); 
+        } finally {
+            // Dismiss the processing overlay after load finishes or fails
+            const overlay = document.getElementById('processing-overlay');
+            if (overlay) overlay.style.display = 'none';
+        }
     }
 
     async function processDeleteOrder(rowId) {
@@ -403,7 +473,6 @@
         markers = [];
         const bounds = new mapboxgl.LngLatBounds();
 
-        // If in list or manager view, generate the Glide-style table header with Sort triggers
         if (viewMode === 'list' || viewMode === 'manager') {
             const header = document.createElement('div');
             header.className = 'glide-table-header';
@@ -429,7 +498,6 @@
             const dueFmt = due ? `${due.getMonth()+1}/${due.getDate()}` : "N/A";
 
             if (viewMode === 'list' || viewMode === 'manager') {
-                // GLIDE STYLE TABLE ROW
                 item.className = `glide-row ${s.status}`;
                 const warnIcon = isLate ? `<span style="color:var(--orange); font-size:16px;">⚠️</span>` : '';
                 
@@ -440,10 +508,12 @@
                         `<option value="${insp.id}" ${s.driverId === insp.id ? 'selected' : ''}>${insp.name}</option>`
                     ).join('');
                     
+                    const defaultPlaceholder = !s.driverId ? `<option value="" disabled selected hidden>Select Inspector...</option>` : '';
+
                     inspectorHtml = `
                         <div class="col-insp" onclick="event.stopPropagation()">
                             <select class="insp-select" onchange="handleInspectorChange(event, '${s.id}', this)">
-                                <option value="" ${!s.driverId ? 'selected' : ''}>Unassigned</option>
+                                ${defaultPlaceholder}
                                 ${optionsHtml}
                             </select>
                         </div>
@@ -460,7 +530,6 @@
                     <div class="col-type">${s.type || '--'}</div>
                 `;
             } else {
-                // STANDARD TILE ROW (Driver/Admin)
                 item.className = `stop-item ${s.status} ${currentDisplayMode}`;
                 const metaDisplay = isDraft ? '-- | --' : `${s.eta || '--'} | ${s.dist || '--'}`;
                 item.innerHTML = `
@@ -487,7 +556,6 @@
             };
             list.appendChild(item);
 
-            // Create Map Markers
             if(s.lng && s.lat) {
                 const el = document.createElement('div');
                 el.className = `marker ${s.status}`; el.innerHTML = `<span>${i + 1}</span>`;
@@ -586,7 +654,6 @@
     function filterList() { const q = document.getElementById('search-input').value.toLowerCase(); document.querySelectorAll('.stop-item, .glide-row').forEach(el => el.style.display = el.getAttribute('data-search').includes(q) ? 'flex' : 'none'); }
     
     function drawRoute() { 
-        // Skip drawing routing lines if in manager view
         if (viewMode === 'manager') {
             if (map.getSource('route')) {
                 map.getSource('route').setData({ "type": "Feature", "geometry": { "type": "LineString", "coordinates": [] } });
@@ -613,11 +680,9 @@
     
     async function triggerBulkDelete() { 
         if(confirm("Remove selected?")) { 
-            // Show processing overlay
             const overlay = document.getElementById('processing-overlay');
             if(overlay) overlay.style.display = 'flex';
 
-            // Trigger deletion via API for each selected ID
             const deletePromises = Array.from(selectedIds).map(id => processDeleteOrder(id));
             await Promise.all(deletePromises);
             
@@ -625,7 +690,6 @@
             updateSelectionUI(); 
             document.getElementById('controls').style.display = 'flex'; 
 
-            // Keep the processing overlay active for exactly 3 seconds to account for Glide API delay
             setTimeout(() => {
                 if(overlay) overlay.style.display = 'none';
             }, 3000);
@@ -664,7 +728,6 @@
         } catch (e) { alert("Sync Failed."); }
     }
 
-    // Only enable sorting if not in list or manager view, as those stylings don't include the drag handle easily
     if (viewMode !== 'list' && viewMode !== 'manager') {
         Sortable.create(document.getElementById('stop-list'), {
             handle: '.handle', animation: 150,

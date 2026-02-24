@@ -165,7 +165,6 @@
         
         .col-num { width: 40px; color: var(--text-muted); font-size: 12px; flex-shrink: 0; display: flex; align-items: center; }
         
-        /* Number Badge for Glide Table */
         .num-badge { 
             width: 26px; height: 26px; border-radius: 4px; 
             background-color: var(--purple); color: white;
@@ -204,9 +203,26 @@
         .insp-select option { background: var(--bg-panel); color: var(--text-main); }
 
         /* MARKERS */
-        .marker { position: absolute !important; width: 28px; height: 28px; background: var(--red); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; border: 2px solid var(--bg-panel); font-size: 12px; cursor: pointer; }
-        .marker.bulk-selected { background: var(--blue) !important; box-shadow: 0 0 12px var(--blue); transform: scale(1.1); }
-        .marker.completed { background: #555; }
+        .marker { 
+            position: absolute !important; 
+            width: 28px; height: 28px; 
+            background: var(--red); 
+            border-radius: 50%; 
+            display: flex; align-items: center; justify-content: center; 
+            color: white; font-weight: bold; 
+            border: 2px solid var(--bg-panel); 
+            font-size: 12px; cursor: pointer; 
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+        .marker.bulk-selected { 
+            background-color: #ffffff !important; 
+            color: #000000 !important; 
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.8); 
+            transform: scale(1.15); 
+            border-color: #ffffff !important;
+            z-index: 1000 !important;
+        }
+        .marker.completed { background-color: #555 !important; color: white !important; }
         .marker-warning { position: absolute; top: -10px; right: -10px; font-size: 16px; pointer-events: none; }
 
         /* MODALS & OVERLAYS */
@@ -296,6 +312,27 @@
 
     let stops = [], originalStops = [], inspectors = [], markers = [], initialBounds = null, selectedIds = new Set(), currentDisplayMode = 'detailed', currentStartTime = "8:00 AM";
     let currentSort = { col: null, asc: true };
+
+    // --- VIRIDIS COLOR PALETTE FOR INSPECTORS ---
+    const VIRIDIS_PALETTE = [
+        { bg: '#440154', text: '#ffffff' },
+        { bg: '#482878', text: '#ffffff' },
+        { bg: '#3e4a89', text: '#ffffff' },
+        { bg: '#31688e', text: '#ffffff' },
+        { bg: '#26828e', text: '#ffffff' },
+        { bg: '#1f9e89', text: '#000000' },
+        { bg: '#35b779', text: '#000000' },
+        { bg: '#6ece58', text: '#000000' },
+        { bg: '#b5de2b', text: '#000000' },
+        { bg: '#fde725', text: '#000000' }
+    ];
+
+    function getInspectorStyle(driverId) {
+        if (!driverId) return { bg: 'var(--red)', text: '#ffffff' };
+        const index = inspectors.findIndex(i => i.id === driverId);
+        if (index === -1) return { bg: 'var(--red)', text: '#ffffff' };
+        return VIRIDIS_PALETTE[index % VIRIDIS_PALETTE.length];
+    }
 
     // --- RESIZER ENGINE ---
     const resizerEl = document.getElementById('resizer');
@@ -423,6 +460,8 @@
         if(overlay) overlay.style.display = 'flex';
         
         processReassignDriver(rowId, newDriverName, newDriverId).then(() => {
+            // Re-render instantly updates the pin colors since the driverId changed
+            render(); 
             setTimeout(() => {
                 if(overlay) overlay.style.display = 'none';
             }, 3000);
@@ -455,7 +494,7 @@
             return 0;
         });
         
-        render(); // Re-render sorted list
+        render(); 
     }
 
     function getSortIcon(col) {
@@ -577,11 +616,21 @@
 
             if(s.lng && s.lat) {
                 const el = document.createElement('div');
-                el.className = `marker ${s.status}`; el.innerHTML = `<span>${i + 1}</span>`;
+                el.className = `marker ${s.status}`; 
+                el.innerHTML = `<span>${i + 1}</span>`;
+                
+                // Dynamically apply Viridis styling for specific inspectors
+                if (s.status !== 'completed') {
+                    const style = getInspectorStyle(s.driverId);
+                    el.style.backgroundColor = style.bg;
+                    el.style.color = style.text;
+                }
+
                 if (urgencyClass) {
                     const w = document.createElement('div'); w.className = 'marker-warning'; w.innerText = '⚠️';
                     el.appendChild(w);
                 }
+                
                 el.onclick = (e) => {
                     e.stopPropagation();
                     if (!e.shiftKey) selectedIds.clear();
@@ -593,6 +642,9 @@
             }
         });
         if (stops.filter(s=> s.lng && s.lat).length > 0) { initialBounds = bounds; map.fitBounds(bounds, { padding: 50, maxZoom: 15 }); }
+        
+        // Ensure UI stays in sync if render is called while things are selected
+        updateSelectionUI();
     }
 
     function updateSummary() {

@@ -46,6 +46,11 @@
         body.view-list #map-wrapper { display: none !important; }
         body.view-list #sidebar { width: 100vw; height: 100vh; max-width: none; border-right: none; }
 
+        /* MANAGER MAP VIEW */
+        body.view-managermap #sidebar { display: none !important; }
+        body.view-managermap #map-wrapper { height: 100vh; width: 100vw; }
+        body.view-managermap #bulk-complete-btn { display: none !important; }
+
         #map-wrapper { position: relative; background-color: var(--bg-base); }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; height: 100%; }
         
@@ -133,13 +138,21 @@
         .marker.completed { background: #555; }
         .marker-warning { position: absolute; top: -10px; right: -10px; font-size: 16px; pointer-events: none; }
 
-        /* MODALS */
+        /* MODALS & OVERLAYS */
         #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
         .modal-box { background: var(--bg-panel); color: var(--text-main); padding: 20px; border-radius: 8px; width: 90%; max-width: 350px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: 1px solid var(--border-color); }
         .modal-box input { background: var(--bg-base); color: var(--text-main); border: 1px solid var(--border-color); }
+
+        #processing-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; 
+            background: rgba(0,0,0,0.8); z-index: 9999; align-items: center; justify-content: center; 
+            color: white; font-size: 22px; font-weight: bold; letter-spacing: 1px;
+        }
     </style>
 </head>
 <body class="view-driver">
+
+<div id="processing-overlay">Processing...</div>
 
 <div id="map-wrapper">
     <div class="map-overlay-btns">
@@ -190,9 +203,14 @@
     const routeId = params.get('id');
     const driverParam = params.get('driver');
     const companyParam = params.get('company');
-    const viewMode = params.get('view') || 'driver'; // Supports 'driver', 'admin', 'map', 'list'
+    const viewMode = params.get('view') || 'driver'; // Supports 'driver', 'admin', 'map', 'list', 'managermap'
     
     document.body.className = `view-${viewMode}`;
+
+    // Adjust UI elements specifically for managermap view
+    if (viewMode === 'managermap') {
+        document.getElementById('bulk-remove-btn').innerText = 'Remove selected';
+    }
 
     // Switch to dark map styling
     mapboxgl.accessToken = MAPBOX_TOKEN;
@@ -227,8 +245,8 @@
             originalStops = JSON.parse(JSON.stringify(stops)); 
             if (stops.length > 0) currentStartTime = stops[0].eta || "8:00 AM";
             
-            // Hide rocker toggle in map or list view if unnecessary
-            if(viewMode === 'map' || viewMode === 'list') {
+            // Hide rocker toggle in map, list, or managermap view if unnecessary
+            if(viewMode === 'map' || viewMode === 'list' || viewMode === 'managermap') {
                 document.querySelector('.rocker').style.display = 'none';
             }
 
@@ -458,21 +476,51 @@
     function focusTile(id) { document.getElementById(`item-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
     function resetMapView() { if (initialBounds) map.fitBounds(initialBounds, { padding: 50, maxZoom: 15 }); }
     function filterList() { const q = document.getElementById('search-input').value.toLowerCase(); document.querySelectorAll('.stop-item, .glide-row').forEach(el => el.style.display = el.getAttribute('data-search').includes(q) ? 'flex' : 'none'); }
-    function drawRoute() { const act = stops.filter(s => s.status !== 'cancelled' && s.lng && s.lat); if (act.length < 2) return; const crd = act.map(s => [s.lng, s.lat]); if (map.getSource('route')) map.getSource('route').setData({ "type": "Feature", "geometry": { "type": "LineString", "coordinates": crd } }); else { map.addSource('route', { "type": "geojson", "data": { "type": "Feature", "geometry": { "type": "LineString", "coordinates": crd } } }); map.addLayer({ "id": "route", "type": "line", "source": "route", "layout": { "line-join": "round", "line-cap": "round" }, "paint": { "line-color": "#3b71ca", "line-width": 4, "line-opacity": 0.5 } }); } }
+    
+    function drawRoute() { 
+        // Skip drawing routing lines if in managermap view
+        if (viewMode === 'managermap') {
+            if (map.getSource('route')) {
+                map.getSource('route').setData({ "type": "Feature", "geometry": { "type": "LineString", "coordinates": [] } });
+            }
+            return;
+        }
+
+        const act = stops.filter(s => s.status !== 'cancelled' && s.lng && s.lat); 
+        if (act.length < 2) return; 
+        const crd = act.map(s => [s.lng, s.lat]); 
+        
+        if (map.getSource('route')) {
+            map.getSource('route').setData({ "type": "Feature", "geometry": { "type": "LineString", "coordinates": crd } }); 
+        } else { 
+            map.addSource('route', { "type": "geojson", "data": { "type": "Feature", "geometry": { "type": "LineString", "coordinates": crd } } }); 
+            map.addLayer({ "id": "route", "type": "line", "source": "route", "layout": { "line-join": "round", "line-cap": "round" }, "paint": { "line-color": "#3b71ca", "line-width": 4, "line-opacity": 0.5 } }); 
+        } 
+    }
+
     function openNav(e, la, ln) { e.stopPropagation(); let p = localStorage.getItem('navPref'); if (!p) { showNavChoice(la, ln); } else { launchMaps(p, la, ln); } }
     function showNavChoice(la, ln) { const m = document.getElementById('modal-overlay'); m.style.display = 'flex'; document.getElementById('modal-content').innerHTML = `<h3>Maps Preference:</h3><div style="display:flex; flex-direction:column; gap:8px;"><button style="padding:12px; border:none; border-radius:6px; background:var(--blue); color:white; font-weight:bold;" onclick="setNavPref('google','${la}','${ln}')">Google Maps</button><button style="padding:12px; border:none; border-radius:6px; background:#444; color:#fff" onclick="setNavPref('apple','${la}','${ln}')">Apple Maps</button></div>`; }
     function setNavPref(p, la, ln) { localStorage.setItem('navPref', p); document.getElementById('modal-overlay').style.display = 'none'; launchMaps(p, la, ln); }
     function launchMaps(p, la, ln) { window.location.href = p === 'google' ? `comgooglemaps://?daddr=${la},${ln}` : `maps://maps.apple.com/?daddr=${la},${ln}`; }
     
-    function triggerBulkDelete() { 
+    async function triggerBulkDelete() { 
         if(confirm("Remove selected?")) { 
+            // Show processing overlay
+            const overlay = document.getElementById('processing-overlay');
+            if(overlay) overlay.style.display = 'flex';
+
             // Trigger deletion via API for each selected ID
-            selectedIds.forEach(id => { 
-                processDeleteOrder(id);
-            }); 
+            const deletePromises = Array.from(selectedIds).map(id => processDeleteOrder(id));
+            await Promise.all(deletePromises);
+            
             selectedIds.clear(); 
             updateSelectionUI(); 
             document.getElementById('controls').style.display = 'flex'; 
+
+            // Keep the processing overlay active for exactly 3 seconds to account for Glide API delay
+            setTimeout(() => {
+                if(overlay) overlay.style.display = 'none';
+            }, 3000);
         } 
     }
     

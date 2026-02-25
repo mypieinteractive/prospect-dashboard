@@ -315,25 +315,25 @@
     let stops = [], originalStops = [], inspectors = [], markers = [], initialBounds = null, selectedIds = new Set(), currentDisplayMode = 'detailed', currentStartTime = "8:00 AM";
     let currentSort = { col: null, asc: true };
 
-    // --- VIRIDIS COLOR PALETTE FOR INSPECTORS ---
-    const VIRIDIS_PALETTE = [
-        { bg: '#440154', text: '#ffffff' },
-        { bg: '#482878', text: '#ffffff' },
-        { bg: '#3e4a89', text: '#ffffff' },
-        { bg: '#31688e', text: '#ffffff' },
-        { bg: '#26828e', text: '#ffffff' },
-        { bg: '#1f9e89', text: '#000000' },
-        { bg: '#35b779', text: '#000000' },
-        { bg: '#6ece58', text: '#000000' },
-        { bg: '#b5de2b', text: '#000000' },
-        { bg: '#fde725', text: '#000000' }
+    // --- HIGH CONTRAST CATEGORICAL PALETTE FOR INSPECTORS ---
+    const INSPECTOR_PALETTE = [
+        { bg: '#3b71ca', text: '#ffffff' }, // Blue
+        { bg: '#2ecc71', text: '#000000' }, // Green
+        { bg: '#f1c40f', text: '#000000' }, // Yellow
+        { bg: '#9b59b6', text: '#ffffff' }, // Purple
+        { bg: '#e67e22', text: '#000000' }, // Orange
+        { bg: '#1abc9c', text: '#000000' }, // Teal
+        { bg: '#e84393', text: '#ffffff' }, // Pink
+        { bg: '#00cec9', text: '#000000' }, // Cyan
+        { bg: '#bcf60c', text: '#000000' }, // Lime
+        { bg: '#3f51b5', text: '#ffffff' }  // Indigo
     ];
 
     function getInspectorStyle(driverId) {
         if (!driverId) return { bg: 'var(--red)', text: '#ffffff' };
         const index = inspectors.findIndex(i => i.id === driverId);
         if (index === -1) return { bg: 'var(--red)', text: '#ffffff' };
-        return VIRIDIS_PALETTE[index % VIRIDIS_PALETTE.length];
+        return INSPECTOR_PALETTE[index % INSPECTOR_PALETTE.length];
     }
 
     // --- RESIZER ENGINE ---
@@ -700,7 +700,24 @@
     canvas.addEventListener('mousedown', (e) => { if(e.shiftKey) { map.dragPan.disable(); start_pos = mousePos(e); document.addEventListener('mousemove', onMouseMove); document.addEventListener('mouseup', onMouseUp); } }, true);
     function mousePos(e) { const r = canvas.getBoundingClientRect(); return new mapboxgl.Point(e.clientX-r.left, e.clientY-r.top); }
     function onMouseMove(e) { const curr = mousePos(e); if(!box_el) { box_el=document.createElement('div'); box_el.className='boxdraw'; canvas.appendChild(box_el); } const minX=Math.min(start_pos.x,curr.x), maxX=Math.max(start_pos.x,curr.x), minY=Math.min(start_pos.y,curr.y), maxY=Math.max(start_pos.y,curr.y); box_el.style.left=minX+'px'; box_el.style.top=minY+'px'; box_el.style.width=(maxX-minX)+'px'; box_el.style.height=(maxY-minY)+'px'; }
-    function onMouseUp(e) { document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp); if(box_el) { const b=[start_pos, mousePos(e)]; markers.filter(m => { const pt=map.project(m.getLngLat()); return pt.x>=Math.min(b[0].x,b[1].x) && pt.x<=Math.max(b[0].x,b[1].x) && pt.y>=Math.min(b[0].y,b[1].y) && pt.y<=Math.max(b[0].y,b[1].y); }).forEach(m=>selectedIds.add(m._stopId)); box_el.remove(); box_el=null; updateSelectionUI(); map.dragPan.enable(); start_pos=null; } }
+    function onMouseUp(e) { 
+        document.removeEventListener('mousemove', onMouseMove); 
+        document.removeEventListener('mouseup', onMouseUp); 
+        if(box_el) { 
+            const b=[start_pos, mousePos(e)]; 
+            markers.filter(m => { 
+                const pt=map.project(m.getLngLat()); 
+                return pt.x>=Math.min(b[0].x,b[1].x) && pt.x<=Math.max(b[0].x,b[1].x) && pt.y>=Math.min(b[0].y,b[1].y) && pt.y<=Math.max(b[0].y,b[1].y); 
+            }).forEach(m=>selectedIds.add(m._stopId)); 
+            box_el.remove(); 
+            box_el=null; 
+            updateSelectionUI(); 
+        } 
+        
+        // Ensure panning is ALWAYS re-enabled after shift-click, regardless of whether a box was drawn
+        map.dragPan.enable(); 
+        start_pos=null; 
+    }
     
     function updateSelectionUI() { 
         document.querySelectorAll('.stop-item, .glide-row').forEach(el=>el.classList.remove('selected')); 

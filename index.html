@@ -233,6 +233,7 @@
         }
         .insp-select:focus { outline: none; border-color: var(--blue); }
         .insp-select option { background: var(--bg-panel); color: var(--text-main); }
+        .insp-select:disabled { opacity: 0.6; cursor: not-allowed; }
 
         /* MARKERS */
         .marker { 
@@ -319,7 +320,7 @@
 
     <div id="route-summary">
         <div class="summary-left">
-            <button class="btn-reoptimize" onclick="handleOptimize()">
+            <button id="btn-reoptimize" class="btn-reoptimize" onclick="handleOptimize()">
                 <i class="fa-solid fa-wand-magic-sparkles"></i> Re-Optimize
             </button>
             <div><span id="sum-dist">-- mi</span> | <span id="sum-time">-- hrs</span></div>
@@ -367,8 +368,10 @@
     const MAPBOX_TOKEN = 'pk.eyJ1IjoibXlwaWVpbnRlcmFjdGl2ZSIsImEiOiJjbWx2ajk5Z2MwOGZlM2VwcDBkc295dzI1In0.eGIhcRPrj_Hx_PeoFAYxBA';
     const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzgh2KCzfdWbOmdVq_edpuI_m6HxkfErzYAEHySfKkq1zgLtwuiUT3GCS5Xor9GgjFa/exec';
     
-    // Fallback variable until Apps Script passes this down in the JSON payload
     let COMPANY_SERVICE_DELAY = 1; 
+    let PERMISSION_MODIFY = true;
+    let PERMISSION_REOPTIMIZE = true;
+    let sortableInstance = null;
 
     const params = new URLSearchParams(window.location.search);
     const routeId = params.get('id');
@@ -397,16 +400,16 @@
 
     // --- HIGH CONTRAST CATEGORICAL PALETTE FOR INSPECTORS ---
     const INSPECTOR_PALETTE = [
-        { bg: '#2563eb', text: '#ffffff' }, // Sproute Blue
-        { bg: '#10b981', text: '#ffffff' }, // Sproute Green
-        { bg: '#f1c40f', text: '#000000' }, // Yellow
-        { bg: '#9b59b6', text: '#ffffff' }, // Purple
-        { bg: '#e67e22', text: '#000000' }, // Orange
-        { bg: '#1abc9c', text: '#000000' }, // Teal
-        { bg: '#e84393', text: '#ffffff' }, // Pink
-        { bg: '#00cec9', text: '#000000' }, // Cyan
-        { bg: '#bcf60c', text: '#000000' }, // Lime
-        { bg: '#3f51b5', text: '#ffffff' }  // Indigo
+        { bg: '#2563eb', text: '#ffffff' }, 
+        { bg: '#10b981', text: '#ffffff' }, 
+        { bg: '#f1c40f', text: '#000000' }, 
+        { bg: '#9b59b6', text: '#ffffff' }, 
+        { bg: '#e67e22', text: '#000000' }, 
+        { bg: '#1abc9c', text: '#000000' }, 
+        { bg: '#e84393', text: '#ffffff' }, 
+        { bg: '#00cec9', text: '#000000' }, 
+        { bg: '#bcf60c', text: '#000000' }, 
+        { bg: '#3f51b5', text: '#ffffff' }  
     ];
 
     function getInspectorStyle(driverId) {
@@ -475,6 +478,12 @@
                     COMPANY_SERVICE_DELAY = parseInt(data.serviceDelay); 
                 }
                 
+                // Permission Assignment
+                if (data.permissions) {
+                    if (typeof data.permissions.modify !== 'undefined') PERMISSION_MODIFY = data.permissions.modify;
+                    if (typeof data.permissions.reoptimize !== 'undefined') PERMISSION_REOPTIMIZE = data.permissions.reoptimize;
+                }
+                
                 // Subscription Tier & Dynamic Logo Logic
                 if (data.tier && data.companyLogo) {
                     if (data.tier === 'Company' || data.tier.toLowerCase() === 'company') {
@@ -484,6 +493,12 @@
                         if (sidebarLogo) sidebarLogo.src = data.companyLogo;
                     }
                 }
+            }
+            
+            // Hide Optimization UI based on new permissions
+            const optBtn = document.getElementById('btn-reoptimize');
+            if (optBtn) {
+                optBtn.style.display = PERMISSION_REOPTIMIZE ? 'flex' : 'none';
             }
             
             stops = rawStops.map(s => ({
@@ -500,7 +515,7 @@
                 document.querySelector('.rocker').style.display = 'none';
             }
 
-            render(); drawRoute(); updateSummary();
+            render(); drawRoute(); updateSummary(); initSortable();
         } catch (e) { 
             console.error("Error loading data:", e); 
         } finally {
@@ -675,10 +690,11 @@
                     ).join('');
                     
                     const defaultPlaceholder = !s.driverId ? `<option value="" disabled selected hidden>Select Inspector...</option>` : '';
+                    const disableSelectAttr = !PERMISSION_MODIFY ? 'disabled' : '';
 
                     inspectorHtml = `
                         <div class="col-insp" onclick="event.stopPropagation()">
-                            <select class="insp-select" onchange="handleInspectorChange(event, '${s.id}', this)">
+                            <select class="insp-select" onchange="handleInspectorChange(event, '${s.id}', this)" ${disableSelectAttr}>
                                 ${defaultPlaceholder}
                                 ${optionsHtml}
                             </select>
@@ -700,9 +716,11 @@
             } else {
                 item.className = `stop-item ${s.status} ${currentDisplayMode}`;
                 const metaDisplay = isDraft ? '-- | --' : `${s.eta || '--'} | ${s.dist || '--'}`;
+                const handleHtml = PERMISSION_MODIFY ? `<div class="handle">☰</div>` : ``;
+                
                 item.innerHTML = `
                     <div class="stop-sidebar ${urgencyClass}">${i + 1}</div>
-                    <div class="handle">☰</div>
+                    ${handleHtml}
                     <div class="csv-box">${(s.client||"??").substring(0,2).toUpperCase()}</div>
                     <div class="stop-content">
                         <b>${(s.address||'').split(',')[0]}</b>
@@ -943,8 +961,8 @@
             } 
         }); 
         const has = selectedIds.size>0; 
-        document.getElementById('bulk-remove-btn').style.display=has?'block':'none'; 
-        document.getElementById('bulk-complete-btn').style.display=has?'block':'none'; 
+        document.getElementById('bulk-remove-btn').style.display = (has && PERMISSION_MODIFY) ? 'block' : 'none'; 
+        document.getElementById('bulk-complete-btn').style.display = has ? 'block' : 'none'; 
     }
 
     // --- SHARED UTILS ---
@@ -1031,16 +1049,20 @@
         } catch (e) { alert("Sync Failed."); }
     }
 
-    if (viewMode !== 'list' && viewMode !== 'manager') {
-        Sortable.create(document.getElementById('stop-list'), {
-            handle: '.handle', animation: 150,
-            onEnd: (evt) => {
-                const moved = stops.splice(evt.oldIndex, 1)[0];
-                stops.splice(evt.newIndex, 0, moved);
-                document.getElementById('controls').style.display = 'flex';
-                render(true); 
+    function initSortable() {
+        if (PERMISSION_MODIFY && viewMode !== 'list' && viewMode !== 'manager') {
+            if (!sortableInstance) {
+                sortableInstance = Sortable.create(document.getElementById('stop-list'), {
+                    handle: '.handle', animation: 150,
+                    onEnd: (evt) => {
+                        const moved = stops.splice(evt.oldIndex, 1)[0];
+                        stops.splice(evt.newIndex, 0, moved);
+                        document.getElementById('controls').style.display = 'flex';
+                        render(true); 
+                    }
+                });
             }
-        });
+        }
     }
 
     // --- POPULATE HEADER NAME ---

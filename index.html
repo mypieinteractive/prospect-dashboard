@@ -21,6 +21,7 @@
             --bg-base: #121212;
             --bg-panel: #1e1e1e;
             --bg-hover: #2a2a2a;
+            --bg-header: #171E26;
             --border-color: #333333;
             --text-main: #e0e0e0;
             --text-muted: #888888;
@@ -87,7 +88,7 @@
         /* SPROUTE FLOATING BRAND FOR MAP-ONLY VIEW */
         .floating-brand {
             position: absolute; top: 15px; right: 15px; z-index: 1000;
-            background: var(--bg-panel); padding: 8px 16px; border-radius: 8px;
+            background: var(--bg-header); padding: 8px 16px; border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 12px;
             border: 1px solid var(--border-color); pointer-events: none; justify-content: space-between; min-width: 200px;
         }
@@ -183,7 +184,7 @@
         .icon-btn { font-size: 28px; cursor: pointer; padding: 4px; }
 
         /* GLIDE TABLE UI (List & Manager View) */
-        .glide-table-header { display: flex; padding: 10px 8px; font-weight: bold; border-bottom: 1px solid var(--border-color); color: var(--text-muted); font-size: 12px; text-transform: uppercase; background: var(--bg-base); position: sticky; top: 0; z-index: 5; }
+        .glide-table-header { display: flex; padding: 10px 8px; font-weight: bold; border-bottom: 1px solid var(--border-color); color: var(--text-muted); font-size: 12px; text-transform: uppercase; background: var(--bg-header); position: sticky; top: 0; z-index: 5; }
         .glide-row { display: flex; padding: 10px 8px; border-bottom: 1px solid #282828; font-size: 14px; color: var(--text-main); align-items: center; cursor: pointer; background: var(--bg-panel); transition: background 0.2s; }
         .glide-row:hover { background: var(--bg-hover); }
         .glide-row.selected { background: var(--fade-blue) !important; }
@@ -313,7 +314,7 @@
 <div id="resizer"></div>
 
 <div id="sidebar">
-    <div id="sidebar-brand" style="padding: 12px 15px; background: var(--bg-base); border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between;">
+    <div id="sidebar-brand" style="padding: 12px 15px; background: var(--bg-header); border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between;">
         <span id="sidebar-driver-name" style="font-size: 20px; font-weight: bold; color: var(--text-main); letter-spacing: 0.5px;"></span>
         <img id="brand-logo-sidebar" src="https://raw.githubusercontent.com/mypieinteractive/prospect-dashboard/809b30bc160d3e353020425ce349c77544ed0452/Sproute%20Logo.png" style="height: 36px; width: auto;" alt="Brand Logo">
     </div>
@@ -493,6 +494,13 @@
                         if (sidebarLogo) sidebarLogo.src = data.companyLogo;
                     }
                 }
+                
+                // Update Display Name dynamically from payload
+                let displayName = data.displayName || 'Sproute'; 
+                const mapDriverEl = document.getElementById('map-driver-name');
+                if (mapDriverEl) mapDriverEl.innerText = displayName;
+                const sidebarDriverEl = document.getElementById('sidebar-driver-name');
+                if (sidebarDriverEl) sidebarDriverEl.innerText = displayName;
             }
             
             // Hide Optimization UI based on new permissions
@@ -1064,13 +1072,6 @@
             }
         }
     }
-
-    // --- POPULATE HEADER NAME ---
-    const displayDriverName = driverParam || (companyParam ? companyParam + ' Dashboard' : 'Dashboard');
-    const mapDriverEl = document.getElementById('map-driver-name');
-    if (mapDriverEl) mapDriverEl.innerText = displayDriverName;
-    const sidebarDriverEl = document.getElementById('sidebar-driver-name');
-    if (sidebarDriverEl) sidebarDriverEl.innerText = displayDriverName;
 
     loadData();
 </script>

@@ -75,6 +75,13 @@
         #map-wrapper { position: relative; background-color: var(--bg-base); }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; height: 100%; }
         
+        #map-hint {
+            position: absolute; top: 15px; left: 15px;
+            background: rgba(0,0,0,0.7); color: #fff; padding: 8px 12px;
+            border-radius: 6px; font-size: 13px; font-weight: bold;
+            z-index: 200; pointer-events: none; border: 1px solid rgba(255,255,255,0.2);
+        }
+
         /* SUMMARY BOX */
         #route-summary { padding: 10px 12px; background: #000; color: #fff; display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: bold; }
         .summary-left { display: flex; align-items: center; gap: 12px; }
@@ -110,11 +117,11 @@
         #search-input::placeholder { color: var(--text-muted); }
         #stop-list { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; position: relative; }
 
-        @container sidebar (max-width: 950px) { .col-type { display: none !important; } }
-        @container sidebar (max-width: 780px) { .col-client { display: none !important; } }
-        @container sidebar (max-width: 600px) { .col-app { display: none !important; } }
-        @container sidebar (max-width: 520px) { .col-due { display: none !important; } }
-        @container sidebar (max-width: 400px) { .col-insp { display: none !important; } }
+        @container sidebar (max-width: 700px) { .col-type { display: none !important; } }
+        @container sidebar (max-width: 600px) { .col-client { display: none !important; } }
+        @container sidebar (max-width: 500px) { .col-app { display: none !important; } }
+        @container sidebar (max-width: 450px) { .col-due { display: none !important; } }
+        @container sidebar (max-width: 380px) { .col-insp { display: none !important; } }
 
         /* GLIDE STYLE BUTTONS */
         #controls { display: none; padding: 12px; background: var(--bg-base); border-bottom: 1px solid var(--border-color); flex-direction: column; gap: 8px; }
@@ -176,11 +183,13 @@
         .col-due.due-today { color: var(--orange); }
         .col-due.past-due { color: var(--red); font-weight: bold; }
 
-        .col-insp { width: 130px; color: var(--text-muted); padding-right: 6px; flex-shrink: 0; }
-        .col-addr { flex: 2; min-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px; font-weight: 500; }
-        .col-app { width: 50px; color: var(--text-muted); flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
-        .col-client { width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px; flex-shrink: 0; }
-        .col-type { flex: 1.5; min-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-muted); }
+        .col-insp { width: 120px; color: var(--text-muted); padding-right: 6px; flex-shrink: 0; }
+        
+        /* Adjusted widths and paddings to fit more columns */
+        .col-addr { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 6px; font-weight: 500; }
+        .col-app { width: 45px; color: var(--text-muted); flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+        .col-client { width: 110px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 6px; flex-shrink: 0; }
+        .col-type { width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-muted); flex-shrink: 0;}
 
         /* Flat Dropdown Styling */
         .insp-select { 
@@ -207,26 +216,34 @@
         .marker { 
             position: absolute !important; 
             width: 28px; height: 28px; 
-            background: var(--red); 
-            border-radius: 50%; 
             display: flex; align-items: center; justify-content: center; 
-            color: white; font-weight: bold; 
-            border: 2px solid var(--bg-panel); 
-            font-size: 12px; cursor: pointer; 
-            /* Removed 'transform' from transition to prevent map jiggle */
-            transition: background-color 0.1s, box-shadow 0.1s, scale 0.1s;
+            cursor: pointer; 
+            border-radius: 50%;
+            z-index: 1;
         }
         .marker.bulk-selected { 
+            z-index: 1000 !important;
+        }
+        
+        .pin-visual {
+            width: 100%; height: 100%;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: bold; color: white;
+            border: 2px solid var(--bg-panel);
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+        
+        .marker.bulk-selected .pin-visual { 
             background-color: #ffffff !important; 
             color: #000000 !important; 
             box-shadow: 0 0 15px rgba(255, 255, 255, 0.8); 
-            /* Use scale property instead of transform to avoid fighting Mapbox translation logic */
-            scale: 1.15; 
+            transform: scale(1.15); 
             border-color: #ffffff !important;
-            z-index: 1000 !important;
         }
-        .marker.completed { background-color: #555 !important; color: white !important; }
-        .marker-warning { position: absolute; top: -10px; right: -10px; font-size: 16px; pointer-events: none; }
+        .marker.completed .pin-visual { background-color: #555 !important; color: white !important; }
+        
+        .marker-warning { position: absolute; top: -10px; right: -10px; font-size: 16px; pointer-events: none; z-index: 5; }
 
         /* SELECTION BOX */
         .boxdraw {
@@ -234,7 +251,7 @@
             border: 1px solid var(--blue);
             position: absolute;
             top: 0; left: 0; width: 0; height: 0;
-            pointer-events: none; /* Critical so it doesn't intercept the mouseup event */
+            pointer-events: none; 
             z-index: 999;
         }
 
@@ -256,6 +273,7 @@
 <div id="processing-overlay">Processing...</div>
 
 <div id="map-wrapper">
+    <div id="map-hint">Shift-drag or Shift-click to select multiple</div>
     <div class="map-overlay-btns">
         <button id="reset-view-btn" class="floating-btn" onclick="resetMapView()">Reset View</button>
         <button id="bulk-complete-btn" class="floating-btn" onclick="triggerBulkComplete()">Mark selected as completed</button>
@@ -442,42 +460,57 @@
     }
 
     async function processReassignDriver(rowId, newDriverName, newDriverId) {
-        try {
-            const stopIdx = stops.findIndex(s => s.id === rowId);
-            if (stopIdx > -1) {
-                stops[stopIdx].driverName = newDriverName;
-                stops[stopIdx].driverId = newDriverId;
-            }
-
-            const payload = { 
-                action: 'updateOrder', 
-                rowId: rowId, 
-                updates: { "HKAwZ": newDriverName, "xuPjx": newDriverId } 
-            };
-            await fetch(WEB_APP_URL, {
-                method: 'POST',
-                body: JSON.stringify(payload)
-            });
-        } catch(e) {
-            console.error("Failed to reassign driver", e);
-            alert("Network error: Failed to update order. Please refresh.");
+        const stopIdx = stops.findIndex(s => s.id === rowId);
+        if (stopIdx > -1) {
+            stops[stopIdx].driverName = newDriverName;
+            stops[stopIdx].driverId = newDriverId;
         }
+
+        const payload = { 
+            action: 'updateOrder', 
+            rowId: rowId, 
+            updates: { "HKAwZ": newDriverName, "xuPjx": newDriverId } 
+        };
+        
+        return fetch(WEB_APP_URL, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
     }
 
-    function handleInspectorChange(e, rowId, selectEl) {
+    async function handleInspectorChange(e, rowId, selectEl) {
         e.stopPropagation(); 
         const newDriverId = selectEl.value;
         const newDriverName = selectEl.options[selectEl.selectedIndex].text;
         
+        let idsToUpdate = [rowId];
+        
+        // Check for bulk update
+        if (selectedIds.has(rowId) && selectedIds.size > 1) {
+            if (confirm(`Reassign all ${selectedIds.size} selected orders to ${newDriverName}?`)) {
+                idsToUpdate = Array.from(selectedIds);
+            } else {
+                // If cancelled, reset dropdown visual by re-rendering
+                render();
+                return;
+            }
+        }
+        
         const overlay = document.getElementById('processing-overlay');
         if(overlay) overlay.style.display = 'flex';
         
-        processReassignDriver(rowId, newDriverName, newDriverId).then(() => {
-            render(); 
-            setTimeout(() => {
-                if(overlay) overlay.style.display = 'none';
-            }, 3000);
-        });
+        try {
+            // Process sequentially to prevent overwhelming Apps Script connection limits
+            for (const id of idsToUpdate) {
+                await processReassignDriver(id, newDriverName, newDriverId);
+            }
+        } catch (err) {
+            console.error("Failed to reassign driver", err);
+            alert("Network error: Failed to update some orders. Please refresh.");
+        }
+        
+        render(); 
+        if(overlay) overlay.style.display = 'none';
     }
 
     // --- SORTING ENGINE ---
@@ -631,25 +664,25 @@
             if(s.lng && s.lat) {
                 const el = document.createElement('div');
                 el.className = `marker ${s.status}`; 
-                el.innerHTML = `<span>${i + 1}</span>`;
                 
-                if (s.status !== 'completed') {
-                    const style = getInspectorStyle(s.driverId);
-                    el.style.backgroundColor = style.bg;
-                    el.style.color = style.text;
-                }
+                const style = getInspectorStyle(s.driverId);
+                // The outer el is placed on the map without transitions, to avoid mapbox jiggle
+                // The inner .pin-visual scales and colors on selection
+                el.innerHTML = `<div class="pin-visual" style="background-color: ${style.bg}; color: ${style.text};"><span>${i + 1}</span></div>`;
 
                 if (urgencyClass) {
                     const w = document.createElement('div'); w.className = 'marker-warning'; w.innerText = '⚠️';
                     el.appendChild(w);
                 }
                 
-                el.onclick = (e) => {
+                // Direct marker click event (using addEventListener to ensure clean capturing)
+                el.addEventListener('click', (e) => {
                     e.stopPropagation();
                     if (!e.shiftKey) selectedIds.clear();
                     selectedIds.has(s.id) ? selectedIds.delete(s.id) : selectedIds.add(s.id);
                     updateSelectionUI(); focusTile(s.id);
-                };
+                });
+                
                 const m = new mapboxgl.Marker({ element: el, anchor: 'center' }).setLngLat([s.lng, s.lat]).addTo(map);
                 m._stopId = s.id; markers.push(m); bounds.extend([s.lng, s.lat]);
             }
@@ -708,8 +741,20 @@
     let start_pos, box_el;
     map.on('click', (e) => { if (e.originalEvent.target.classList.contains('mapboxgl-canvas')) { selectedIds.clear(); updateSelectionUI(); } });
     const canvas = map.getCanvasContainer();
-    canvas.addEventListener('mousedown', (e) => { if(e.shiftKey) { map.dragPan.disable(); start_pos = mousePos(e); document.addEventListener('mousemove', onMouseMove); document.addEventListener('mouseup', onMouseUp); } }, true);
+    
+    // Listen for mousedown on canvas, but ignore if the target is a marker to fix shift-click marker selection
+    canvas.addEventListener('mousedown', (e) => { 
+        if (e.target.closest('.mapboxgl-marker')) return; 
+        if(e.shiftKey) { 
+            map.dragPan.disable(); 
+            start_pos = mousePos(e); 
+            document.addEventListener('mousemove', onMouseMove); 
+            document.addEventListener('mouseup', onMouseUp); 
+        } 
+    }, true);
+    
     function mousePos(e) { const r = canvas.getBoundingClientRect(); return new mapboxgl.Point(e.clientX-r.left, e.clientY-r.top); }
+    
     function onMouseMove(e) { 
         const curr = mousePos(e); 
         if(!box_el) { 
@@ -720,6 +765,7 @@
         const minX=Math.min(start_pos.x,curr.x), maxX=Math.max(start_pos.x,curr.x), minY=Math.min(start_pos.y,curr.y), maxY=Math.max(start_pos.y,curr.y); 
         box_el.style.left=minX+'px'; box_el.style.top=minY+'px'; box_el.style.width=(maxX-minX)+'px'; box_el.style.height=(maxY-minY)+'px'; 
     }
+    
     function onMouseUp(e) { 
         document.removeEventListener('mousemove', onMouseMove); 
         document.removeEventListener('mouseup', onMouseUp); 
@@ -734,7 +780,6 @@
             updateSelectionUI(); 
         } 
         
-        // This is strictly moved outside the if statement so panning is guaranteed to unlock
         map.dragPan.enable(); 
         start_pos=null; 
     }

@@ -170,7 +170,6 @@
             display: flex; align-items: center; justify-content: center;
             font-weight: bold; font-size: 13px;
         }
-        /* Override badge color for completed rows */
         .glide-row.completed .num-badge { background-color: #555 !important; color: white !important; }
 
         .col-due { width: 65px; display: flex; align-items: center; justify-content: center; gap: 2px; font-weight: 500; flex-shrink: 0;}
@@ -214,18 +213,30 @@
             color: white; font-weight: bold; 
             border: 2px solid var(--bg-panel); 
             font-size: 12px; cursor: pointer; 
-            transition: transform 0.1s, box-shadow 0.1s;
+            /* Removed 'transform' from transition to prevent map jiggle */
+            transition: background-color 0.1s, box-shadow 0.1s, scale 0.1s;
         }
         .marker.bulk-selected { 
             background-color: #ffffff !important; 
             color: #000000 !important; 
             box-shadow: 0 0 15px rgba(255, 255, 255, 0.8); 
-            transform: scale(1.15); 
+            /* Use scale property instead of transform to avoid fighting Mapbox translation logic */
+            scale: 1.15; 
             border-color: #ffffff !important;
             z-index: 1000 !important;
         }
         .marker.completed { background-color: #555 !important; color: white !important; }
         .marker-warning { position: absolute; top: -10px; right: -10px; font-size: 16px; pointer-events: none; }
+
+        /* SELECTION BOX */
+        .boxdraw {
+            background: rgba(59, 113, 202, 0.3);
+            border: 1px solid var(--blue);
+            position: absolute;
+            top: 0; left: 0; width: 0; height: 0;
+            pointer-events: none; /* Critical so it doesn't intercept the mouseup event */
+            z-index: 999;
+        }
 
         /* MODALS & OVERLAYS */
         #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
@@ -699,7 +710,16 @@
     const canvas = map.getCanvasContainer();
     canvas.addEventListener('mousedown', (e) => { if(e.shiftKey) { map.dragPan.disable(); start_pos = mousePos(e); document.addEventListener('mousemove', onMouseMove); document.addEventListener('mouseup', onMouseUp); } }, true);
     function mousePos(e) { const r = canvas.getBoundingClientRect(); return new mapboxgl.Point(e.clientX-r.left, e.clientY-r.top); }
-    function onMouseMove(e) { const curr = mousePos(e); if(!box_el) { box_el=document.createElement('div'); box_el.className='boxdraw'; canvas.appendChild(box_el); } const minX=Math.min(start_pos.x,curr.x), maxX=Math.max(start_pos.x,curr.x), minY=Math.min(start_pos.y,curr.y), maxY=Math.max(start_pos.y,curr.y); box_el.style.left=minX+'px'; box_el.style.top=minY+'px'; box_el.style.width=(maxX-minX)+'px'; box_el.style.height=(maxY-minY)+'px'; }
+    function onMouseMove(e) { 
+        const curr = mousePos(e); 
+        if(!box_el) { 
+            box_el=document.createElement('div'); 
+            box_el.className='boxdraw'; 
+            canvas.appendChild(box_el); 
+        } 
+        const minX=Math.min(start_pos.x,curr.x), maxX=Math.max(start_pos.x,curr.x), minY=Math.min(start_pos.y,curr.y), maxY=Math.max(start_pos.y,curr.y); 
+        box_el.style.left=minX+'px'; box_el.style.top=minY+'px'; box_el.style.width=(maxX-minX)+'px'; box_el.style.height=(maxY-minY)+'px'; 
+    }
     function onMouseUp(e) { 
         document.removeEventListener('mousemove', onMouseMove); 
         document.removeEventListener('mouseup', onMouseUp); 
@@ -714,7 +734,7 @@
             updateSelectionUI(); 
         } 
         
-        // Ensure panning is ALWAYS re-enabled after shift-click, regardless of whether a box was drawn
+        // This is strictly moved outside the if statement so panning is guaranteed to unlock
         map.dragPan.enable(); 
         start_pos=null; 
     }

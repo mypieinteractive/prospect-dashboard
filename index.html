@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>ProSpect Dashboard</title>
+    <title>Sproute Dashboard</title>
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
     
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css" rel="stylesheet">
@@ -12,10 +12,10 @@
 
     <style>
         :root { 
-            --blue: #3b71ca; 
-            --fade-blue: rgba(59, 113, 202, 0.2); 
+            --blue: #2563eb; 
+            --fade-blue: rgba(37, 99, 235, 0.2); 
             --red: #e74c3c; 
-            --green: #2ecc71; 
+            --green: #10b981; 
             --purple: #8e44ad; 
             --orange: #f39c12; 
             --bg-base: #121212;
@@ -83,6 +83,15 @@
             border-radius: 6px; font-size: 13px; font-weight: bold;
             z-index: 200; pointer-events: none; border: 1px solid rgba(255,255,255,0.15);
         }
+
+        /* SPROUTE FLOATING BRAND FOR MAP-ONLY VIEW */
+        .floating-brand {
+            position: absolute; top: 15px; right: 15px; z-index: 1000;
+            background: var(--bg-panel); padding: 8px 16px; border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 12px;
+            border: 1px solid var(--border-color); pointer-events: none;
+        }
+        body:not(.view-map) #map-brand { display: none; }
 
         /* CURSORS FOR SHIFT STATE */
         #map-wrapper.shift-down .mapboxgl-canvas-container,
@@ -260,7 +269,7 @@
 
         /* SELECTION BOX */
         .boxdraw {
-            background: rgba(59, 113, 202, 0.3);
+            background: rgba(37, 99, 235, 0.3); /* Sproute Blue match */
             border: 1px solid var(--blue);
             position: absolute;
             top: 0; left: 0; width: 0; height: 0;
@@ -286,6 +295,11 @@
 <div id="processing-overlay">Processing...</div>
 
 <div id="map-wrapper">
+    <div id="map-brand" class="floating-brand">
+        <img src="https://drive.google.com/uc?export=view&id=1_S8eu9rTydlJkO43agThuLwwp3zQutIh" style="height: 28px; width: auto;" alt="Sproute Logo">
+        <span style="font-size: 18px; font-weight: bold; color: var(--text-main); letter-spacing: 0.5px;">Sproute</span>
+    </div>
+
     <div id="map-hint">Shift-drag or Shift-click to select multiple</div>
     <div class="map-overlay-btns">
         <button id="reset-view-btn" class="floating-btn" onclick="resetMapView()">Reset View</button>
@@ -298,6 +312,11 @@
 <div id="resizer"></div>
 
 <div id="sidebar">
+    <div id="sidebar-brand" style="padding: 12px 15px; background: var(--bg-base); border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 12px;">
+        <img src="https://drive.google.com/uc?export=view&id=1_S8eu9rTydlJkO43agThuLwwp3zQutIh" style="height: 28px; width: auto;" alt="Sproute Logo">
+        <span style="font-size: 18px; font-weight: bold; color: var(--text-main); letter-spacing: 0.5px;">Sproute</span>
+    </div>
+
     <div id="route-summary">
         <div class="summary-left">
             <button class="btn-reoptimize" onclick="handleOptimize()">
@@ -376,8 +395,8 @@
 
     // --- HIGH CONTRAST CATEGORICAL PALETTE FOR INSPECTORS ---
     const INSPECTOR_PALETTE = [
-        { bg: '#3b71ca', text: '#ffffff' }, // Blue
-        { bg: '#2ecc71', text: '#000000' }, // Green
+        { bg: '#2563eb', text: '#ffffff' }, // Sproute Blue
+        { bg: '#10b981', text: '#ffffff' }, // Sproute Green
         { bg: '#f1c40f', text: '#000000' }, // Yellow
         { bg: '#9b59b6', text: '#ffffff' }, // Purple
         { bg: '#e67e22', text: '#000000' }, // Orange
@@ -847,7 +866,7 @@
             map.getSource('route').setData({ "type": "Feature", "geometry": { "type": "LineString", "coordinates": crd } }); 
         } else { 
             map.addSource('route', { "type": "geojson", "data": { "type": "Feature", "geometry": { "type": "LineString", "coordinates": crd } } }); 
-            map.addLayer({ "id": "route", "type": "line", "source": "route", "layout": { "line-join": "round", "line-cap": "round" }, "paint": { "line-color": "#3b71ca", "line-width": 4, "line-opacity": 0.5 } }); 
+            map.addLayer({ "id": "route", "type": "line", "source": "route", "layout": { "line-join": "round", "line-cap": "round" }, "paint": { "line-color": "#2563eb", "line-width": 4, "line-opacity": 0.5 } }); 
         } 
     }
 

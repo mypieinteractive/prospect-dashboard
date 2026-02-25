@@ -77,9 +77,22 @@
         
         #map-hint {
             position: absolute; top: 15px; left: 15px;
-            background: rgba(0,0,0,0.7); color: #fff; padding: 8px 12px;
+            background: rgba(0,0,0,0.25); 
+            backdrop-filter: blur(4px);
+            color: rgba(255,255,255,0.9); padding: 8px 12px;
             border-radius: 6px; font-size: 13px; font-weight: bold;
-            z-index: 200; pointer-events: none; border: 1px solid rgba(255,255,255,0.2);
+            z-index: 200; pointer-events: none; border: 1px solid rgba(255,255,255,0.15);
+        }
+
+        /* CURSORS FOR SHIFT STATE */
+        #map-wrapper.shift-down .mapboxgl-canvas-container,
+        #map-wrapper.shift-down .mapboxgl-canvas-container.mapboxgl-interactive,
+        #map-wrapper.shift-down .mapboxgl-canvas-container.mapboxgl-interactive:active {
+            cursor: crosshair !important;
+        }
+        #map-wrapper.shift-down .marker,
+        #map-wrapper.shift-down .marker .pin-visual {
+            cursor: pointer !important;
         }
 
         /* SUMMARY BOX */
@@ -317,6 +330,22 @@
 <div id="modal-overlay"><div class="modal-box" id="modal-content"></div></div>
 
 <script>
+    // --- SHIFT CURSOR ENGINE ---
+    // Dynamically tracks the Shift key state to update the Mapbox cursor
+    function updateShiftCursor(isShiftDown) {
+        const wrap = document.getElementById('map-wrapper');
+        if (wrap) {
+            if (isShiftDown && !wrap.classList.contains('shift-down')) {
+                wrap.classList.add('shift-down');
+            } else if (!isShiftDown && wrap.classList.contains('shift-down')) {
+                wrap.classList.remove('shift-down');
+            }
+        }
+    }
+    document.addEventListener('keydown', (e) => { if (e.key === 'Shift') updateShiftCursor(true); });
+    document.addEventListener('keyup', (e) => { if (e.key === 'Shift') updateShiftCursor(false); });
+    document.addEventListener('mousemove', (e) => { updateShiftCursor(e.shiftKey); });
+
     const MAPBOX_TOKEN = 'pk.eyJ1IjoibXlwaWVpbnRlcmFjdGl2ZSIsImEiOiJjbWx2ajk5Z2MwOGZlM2VwcDBkc295dzI1In0.eGIhcRPrj_Hx_PeoFAYxBA';
     const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzgh2KCzfdWbOmdVq_edpuI_m6HxkfErzYAEHySfKkq1zgLtwuiUT3GCS5Xor9GgjFa/exec';
     
@@ -338,7 +367,8 @@
         style: 'mapbox://styles/mapbox/dark-v11', 
         center: [-96.797, 32.776], 
         zoom: 11, 
-        attributionControl: false 
+        attributionControl: false,
+        boxZoom: false // Disabled to prevent Mapbox from intercepting shift-clicks on markers
     });
 
     let stops = [], originalStops = [], inspectors = [], markers = [], initialBounds = null, selectedIds = new Set(), currentDisplayMode = 'detailed', currentStartTime = "8:00 AM";
@@ -490,7 +520,6 @@
             if (confirm(`Reassign all ${selectedIds.size} selected orders to ${newDriverName}?`)) {
                 idsToUpdate = Array.from(selectedIds);
             } else {
-                // If cancelled, reset dropdown visual by re-rendering
                 render();
                 return;
             }
@@ -500,7 +529,6 @@
         if(overlay) overlay.style.display = 'flex';
         
         try {
-            // Process sequentially to prevent overwhelming Apps Script connection limits
             for (const id of idsToUpdate) {
                 await processReassignDriver(id, newDriverName, newDriverId);
             }
@@ -666,8 +694,6 @@
                 el.className = `marker ${s.status}`; 
                 
                 const style = getInspectorStyle(s.driverId);
-                // The outer el is placed on the map without transitions, to avoid mapbox jiggle
-                // The inner .pin-visual scales and colors on selection
                 el.innerHTML = `<div class="pin-visual" style="background-color: ${style.bg}; color: ${style.text};"><span>${i + 1}</span></div>`;
 
                 if (urgencyClass) {
@@ -675,7 +701,6 @@
                     el.appendChild(w);
                 }
                 
-                // Direct marker click event (using addEventListener to ensure clean capturing)
                 el.addEventListener('click', (e) => {
                     e.stopPropagation();
                     if (!e.shiftKey) selectedIds.clear();
@@ -742,7 +767,6 @@
     map.on('click', (e) => { if (e.originalEvent.target.classList.contains('mapboxgl-canvas')) { selectedIds.clear(); updateSelectionUI(); } });
     const canvas = map.getCanvasContainer();
     
-    // Listen for mousedown on canvas, but ignore if the target is a marker to fix shift-click marker selection
     canvas.addEventListener('mousedown', (e) => { 
         if (e.target.closest('.mapboxgl-marker')) return; 
         if(e.shiftKey) { 

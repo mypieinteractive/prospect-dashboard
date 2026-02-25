@@ -154,8 +154,8 @@
         .icon-btn { font-size: 28px; cursor: pointer; padding: 4px; }
 
         /* GLIDE TABLE UI (List & Manager View) */
-        .glide-table-header { display: flex; padding: 12px 10px; font-weight: bold; border-bottom: 1px solid var(--border-color); color: var(--text-muted); font-size: 12px; text-transform: uppercase; background: var(--bg-base); position: sticky; top: 0; z-index: 5; }
-        .glide-row { display: flex; padding: 12px 10px; border-bottom: 1px solid #282828; font-size: 14px; color: var(--text-main); align-items: center; cursor: pointer; background: var(--bg-panel); transition: background 0.2s; }
+        .glide-table-header { display: flex; padding: 10px 8px; font-weight: bold; border-bottom: 1px solid var(--border-color); color: var(--text-muted); font-size: 12px; text-transform: uppercase; background: var(--bg-base); position: sticky; top: 0; z-index: 5; }
+        .glide-row { display: flex; padding: 10px 8px; border-bottom: 1px solid #282828; font-size: 14px; color: var(--text-main); align-items: center; cursor: pointer; background: var(--bg-panel); transition: background 0.2s; }
         .glide-row:hover { background: var(--bg-hover); }
         .glide-row.selected { background: var(--fade-blue) !important; }
         .glide-row.completed { opacity: 0.5; }
@@ -163,23 +163,25 @@
         .sortable { cursor: pointer; transition: color 0.2s; display: flex; align-items: center; }
         .sortable:hover { color: var(--text-main); }
         
-        .col-num { width: 40px; color: var(--text-muted); font-size: 12px; flex-shrink: 0; display: flex; align-items: center; }
+        .col-num { width: 36px; color: var(--text-muted); font-size: 12px; flex-shrink: 0; display: flex; align-items: center; }
         
         .num-badge { 
             width: 26px; height: 26px; border-radius: 4px; 
-            background-color: var(--purple); color: white;
             display: flex; align-items: center; justify-content: center;
             font-weight: bold; font-size: 13px;
         }
-        .num-badge.due-today { background-color: var(--orange); }
-        .num-badge.past-due { background-color: var(--red); }
+        /* Override badge color for completed rows */
+        .glide-row.completed .num-badge { background-color: #555 !important; color: white !important; }
 
-        .col-due { width: 70px; display: flex; align-items: center; justify-content: center; gap: 4px; font-weight: 500; flex-shrink: 0;}
-        .col-insp { width: 140px; color: var(--text-muted); padding-right: 10px; flex-shrink: 0; }
-        .col-addr { flex: 2; min-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 15px; font-weight: 500; }
-        .col-app { width: 60px; color: var(--text-muted); flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
-        .col-client { width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 15px; flex-shrink: 0; }
-        .col-type { flex: 2; min-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-muted); }
+        .col-due { width: 65px; display: flex; align-items: center; justify-content: center; gap: 2px; font-weight: 500; flex-shrink: 0;}
+        .col-due.due-today { color: var(--orange); }
+        .col-due.past-due { color: var(--red); font-weight: bold; }
+
+        .col-insp { width: 130px; color: var(--text-muted); padding-right: 6px; flex-shrink: 0; }
+        .col-addr { flex: 2; min-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px; font-weight: 500; }
+        .col-app { width: 50px; color: var(--text-muted); flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+        .col-client { width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px; flex-shrink: 0; }
+        .col-type { flex: 1.5; min-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-muted); }
 
         /* Flat Dropdown Styling */
         .insp-select { 
@@ -187,7 +189,7 @@
             background-color: var(--bg-panel); 
             color: var(--text-main); 
             border: 1px solid var(--border-color); 
-            padding: 6px 24px 6px 8px; 
+            padding: 6px 20px 6px 6px; 
             border-radius: 4px; 
             font-size: 13px; 
             cursor: pointer; 
@@ -196,7 +198,7 @@
             appearance: none;
             background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23888888%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
             background-repeat: no-repeat;
-            background-position: right 8px center;
+            background-position: right 6px center;
             background-size: 10px auto;
         }
         .insp-select:focus { outline: none; border-color: var(--blue); }
@@ -460,7 +462,6 @@
         if(overlay) overlay.style.display = 'flex';
         
         processReassignDriver(rowId, newDriverName, newDriverId).then(() => {
-            // Re-render instantly updates the pin colors since the driverId changed
             render(); 
             setTimeout(() => {
                 if(overlay) overlay.style.display = 'none';
@@ -578,9 +579,11 @@
                     `;
                 }
 
+                const inspectorStyle = getInspectorStyle(s.driverId);
+
                 item.innerHTML = `
-                    <div class="col-num"><div class="num-badge ${urgencyClass}">${i + 1}</div></div>
-                    <div class="col-due">${dueFmt}</div>
+                    <div class="col-num"><div class="num-badge" style="background-color: ${inspectorStyle.bg}; color: ${inspectorStyle.text};">${i + 1}</div></div>
+                    <div class="col-due ${urgencyClass}">${dueFmt}</div>
                     ${inspectorHtml}
                     <div class="col-addr">${(s.address||'').split(',')[0]}</div>
                     <div class="col-app">IA</div>
@@ -619,7 +622,6 @@
                 el.className = `marker ${s.status}`; 
                 el.innerHTML = `<span>${i + 1}</span>`;
                 
-                // Dynamically apply Viridis styling for specific inspectors
                 if (s.status !== 'completed') {
                     const style = getInspectorStyle(s.driverId);
                     el.style.backgroundColor = style.bg;
@@ -643,7 +645,6 @@
         });
         if (stops.filter(s=> s.lng && s.lat).length > 0) { initialBounds = bounds; map.fitBounds(bounds, { padding: 50, maxZoom: 15 }); }
         
-        // Ensure UI stays in sync if render is called while things are selected
         updateSelectionUI();
     }
 

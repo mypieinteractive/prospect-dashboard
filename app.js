@@ -19,7 +19,8 @@ let COMPANY_SERVICE_DELAY = 1;
 let PERMISSION_MODIFY = true;
 let PERMISSION_REOPTIMIZE = true;
 let sortableInstance = null;
-let currentRouteCount = 1; // Used for Routing View Divider
+let currentRouteCount = 1; 
+let currentInspectorFilter = 'all';
 
 const params = new URLSearchParams(window.location.search);
 const routeId = params.get('id');
@@ -59,12 +60,29 @@ const INSPECTOR_PALETTE = [
     { bg: '#3f51b5', text: '#ffffff' }  
 ];
 
-// Helper: Filters out stops depending on the view Mode.
+function handleInspectorFilterChange(val) {
+    currentInspectorFilter = val;
+    selectedIds.clear();
+    render(); drawRoute(); updateSummary();
+}
+
 function isActiveStop(s) {
+    let active = true;
+    const status = (s.status || '').toLowerCase();
+    
     if (viewMode === 'routing') {
-        return s.status && s.status.toLowerCase() === 'routed';
+        active = status === 'routed';
+    } else if (viewMode === 'manager') {
+        active = status !== 'routed' && status !== 'cancelled' && status !== 'removed';
+    } else {
+        active = status !== 'cancelled';
     }
-    return s.status !== 'cancelled';
+    
+    if (viewMode === 'manager' && currentInspectorFilter !== 'all') {
+        if (s.driverId !== currentInspectorFilter) active = false;
+    }
+    
+    return active;
 }
 
 function getVisualStyle(stopData) {
@@ -133,6 +151,8 @@ async function loadData() {
                 if (typeof data.permissions.reoptimize !== 'undefined') PERMISSION_REOPTIMIZE = data.permissions.reoptimize;
             }
             
+            document.body.classList.add('tier-' + (data.tier ? data.tier.toLowerCase() : 'individual'));
+
             const mapLogo = document.getElementById('brand-logo-map');
             const sidebarLogo = document.getElementById('brand-logo-sidebar');
 
@@ -148,8 +168,21 @@ async function loadData() {
             let displayName = data.displayName || 'Sproute'; 
             const mapDriverEl = document.getElementById('map-driver-name');
             if (mapDriverEl) mapDriverEl.innerText = displayName;
+            
             const sidebarDriverEl = document.getElementById('sidebar-driver-name');
-            if (sidebarDriverEl) sidebarDriverEl.innerText = displayName;
+            const filterSelect = document.getElementById('inspector-filter');
+            
+            if (viewMode === 'manager' && data.tier && data.tier.toLowerCase() !== 'individual') {
+                if (sidebarDriverEl) sidebarDriverEl.style.display = 'none';
+                if (filterSelect) {
+                    filterSelect.style.display = 'block';
+                    let filterHtml = '<option value="all">All Inspectors</option>';
+                    inspectors.forEach(i => { filterHtml += `<option value="${i.id}">${i.name}</option>`; });
+                    filterSelect.innerHTML = filterHtml;
+                }
+            } else {
+                if (sidebarDriverEl) sidebarDriverEl.innerText = displayName;
+            }
         }
         
         const optBtn = document.getElementById('btn-reoptimize');
@@ -158,8 +191,8 @@ async function loadData() {
         stops = rawStops.map(s => ({
             ...s,
             id: s.rowId || s.id,
-            cluster: 0, // Baseline K-Means assignment
-            manualCluster: false // Locks nodes pushed by the user
+            cluster: 0, 
+            manualCluster: false 
         }));
 
         originalStops = JSON.parse(JSON.stringify(stops)); 
@@ -191,11 +224,10 @@ function setRoutes(num) {
         const btn = document.getElementById(`rbtn-${i}`);
         if(btn) btn.classList.toggle('active', i === num);
     }
-    // Wipe manual locks if we change the route divider entirely
     stops.forEach(s => s.manualCluster = false); 
     
     liveClusterUpdate();
-    updateSelectionUI(); // hide unused manual move buttons
+    updateSelectionUI(); 
 }
 
 function moveSelectedToRoute(cIdx) {
@@ -203,7 +235,7 @@ function moveSelectedToRoute(cIdx) {
         const s = stops.find(st => st.id === id);
         if (s) {
             s.cluster = cIdx;
-            s.manualCluster = true; // Lock it to avoid K-Means overriding it
+            s.manualCluster = true; 
         }
     });
     selectedIds.clear();
@@ -235,7 +267,6 @@ function liveClusterUpdate() {
     const activeStops = stops.filter(s => isActiveStop(s) && s.lng && s.lat);
     if(activeStops.length === 0) return;
 
-    // Reset if K = 1
     if(k === 1) {
         activeStops.forEach(s => { s.cluster = 0; s.manualCluster = false; });
         updateMarkerColors();
@@ -254,7 +285,7 @@ function liveClusterUpdate() {
 
     for(let iter=0; iter<10; iter++) {
         activeStops.forEach(s => {
-            if (s.manualCluster) return; // Skip overrides
+            if (s.manualCluster) return; 
 
             let bestD = Infinity;
             let bestC = 0;
@@ -311,17 +342,18 @@ function updateMarkerColors() {
 async function processDeleteOrder(rowId) {
     try {
         if (viewMode === 'routing') {
-            // Unroute visually immediately
             const idx = stops.findIndex(s => s.id === rowId);
             if (idx > -1) stops[idx].status = '';
             render(); drawRoute(); updateSummary(); updateRouteTimes();
-            
             await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'unrouteOrder', rowId: rowId }) });
+        } else if (viewMode === 'manager') {
+            const idx = stops.findIndex(s => s.id === rowId);
+            if (idx > -1) stops[idx].status = 'Removed';
+            render(); drawRoute(); updateSummary();
+            await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'markOrderRemoved', rowId: rowId }) });
         } else {
-            // Delete locally immediately
             stops = stops.filter(s => s.id !== rowId);
             render(); drawRoute(); updateSummary();
-            
             await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'deleteOrder', rowId: rowId }) });
         }
     } catch(e) { alert("Network error: Failed to modify order."); }
@@ -618,11 +650,28 @@ async function handleCalculate() {
 
 function handleOptimize() { showSyncOptions('optimize'); }
 
-function handleUndo() {
+async function handleUndo() {
     if(confirm("Discard all changes and revert to original route?")) {
-        stops = JSON.parse(JSON.stringify(originalStops));
-        document.getElementById('controls').style.display = 'none';
-        render(); drawRoute(); updateSummary();
+        const overlay = document.getElementById('processing-overlay');
+        
+        if (viewMode === 'manager') {
+            if(overlay) overlay.style.display = 'flex';
+            try {
+                const payload = { action: 'undoManagerChanges', originalStops: originalStops };
+                await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
+                stops = JSON.parse(JSON.stringify(originalStops));
+                document.getElementById('controls').style.display = 'none';
+                render(); drawRoute(); updateSummary();
+            } catch(e) { 
+                alert("Failed to undo changes on server."); 
+            } finally { 
+                if(overlay) overlay.style.display = 'none'; 
+            }
+        } else {
+            stops = JSON.parse(JSON.stringify(originalStops));
+            document.getElementById('controls').style.display = 'none';
+            render(); drawRoute(); updateSummary();
+        }
     }
 }
 
@@ -678,7 +727,6 @@ function updateSelectionUI() {
     document.getElementById('bulk-remove-btn').style.display = (has && PERMISSION_MODIFY) ? 'block' : 'none'; 
     document.getElementById('bulk-complete-btn').style.display = (has && viewMode !== 'routing') ? 'block' : 'none'; 
     
-    // Manage dynamic Move buttons for Routing view
     for(let i=1; i<=3; i++) {
         const btn = document.getElementById(`move-r${i}-btn`);
         if(btn) {
@@ -758,7 +806,6 @@ async function finalizeSync(type) {
     const startAddr = document.getElementById('start-addr').value, endAddr = document.getElementById('end-addr').value;
     document.getElementById('modal-overlay').style.display = 'none';
     
-    // Prepare Payload 
     let payload = { 
         action: type, driver: driverParam, 
         startTime: currentStartTime, startAddr: startAddr, endAddr: endAddr 

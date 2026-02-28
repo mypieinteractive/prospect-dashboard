@@ -46,12 +46,16 @@ body.view-manager #map-wrapper { flex: 1; height: 100vh; width: auto; }
 body.view-manager #sidebar { width: 50vw; min-width: 10vw; height: 100vh; border-left: none; flex: none; }
 body.view-manager #bulk-complete-btn { display: none !important; }
 body.view-manager #summary-metrics { display: none !important; } 
+body.view-manager #btn-recalc { display: none !important; } /* Hidden Re-Calculate */
 
-/* ROUTING VIEW (New for V198.0) */
+/* INDIVIDUAL PLAN (Hides Inspector Col) */
+body.tier-individual .col-insp { display: none !important; }
+
+/* ROUTING VIEW */
 body.view-routing { flex-direction: row; }
 body.view-routing #map-wrapper { flex: 1; height: 100vh; width: auto; }
 body.view-routing #sidebar { width: 400px; height: 100vh; border-right: 2px solid var(--border-color); }
-body.view-routing .stop-actions { display: none !important; } /* Hide checks and nav arrows in routing view */
+body.view-routing .stop-actions { display: none !important; } 
 
 #routing-controls { display: none; padding: 15px; background: var(--bg-panel); border-bottom: 1px solid var(--border-color); }
 body.view-routing #routing-controls { display: flex; flex-direction: column; }
@@ -66,6 +70,13 @@ body.view-routing #routing-controls { display: flex; flex-direction: column; }
 .rbtn-title { font-size: 13px; font-weight: bold; color: var(--text-main); pointer-events: none; }
 .rbtn-time { font-size: 11px; color: var(--text-muted); pointer-events: none; margin-top: 2px; }
 
+/* INSPECTOR FILTER (Manager View) */
+#inspector-filter {
+    background: var(--bg-panel); color: var(--text-main); font-size: 16px; font-weight: bold;
+    border: 1px solid var(--border-color); padding: 6px 10px; border-radius: 6px; cursor: pointer;
+    outline: none; max-width: 65%;
+}
+
 /* SLIDER STYLING */
 input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
 input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: var(--blue); cursor: pointer; margin-top: -6px; }
@@ -73,13 +84,8 @@ input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cur
 
 /* RESIZER / SLIDER */
 #resizer {
-    width: 6px;
-    background-color: var(--border-color);
-    cursor: col-resize;
-    display: none;
-    flex: none;
-    z-index: 100;
-    transition: background-color 0.2s;
+    width: 6px; background-color: var(--border-color); cursor: col-resize;
+    display: none; flex: none; z-index: 100; transition: background-color 0.2s;
 }
 #resizer:hover, #resizer.active { background-color: var(--blue); }
 body.view-manager #resizer { display: block; }
@@ -88,12 +94,9 @@ body.view-manager #resizer { display: block; }
 #map { position: absolute; top: 0; bottom: 0; width: 100%; height: 100%; }
 
 #map-hint {
-    position: absolute; top: 15px; left: 15px;
-    background: rgba(0,0,0,0.25); 
-    backdrop-filter: blur(4px);
-    color: rgba(255,255,255,0.9); padding: 8px 12px;
-    border-radius: 6px; font-size: 13px; font-weight: bold;
-    z-index: 200; pointer-events: none; border: 1px solid rgba(255,255,255,0.15);
+    position: absolute; top: 15px; left: 15px; background: rgba(0,0,0,0.25); 
+    backdrop-filter: blur(4px); color: rgba(255,255,255,0.9); padding: 8px 12px;
+    border-radius: 6px; font-size: 13px; font-weight: bold; z-index: 200; pointer-events: none; border: 1px solid rgba(255,255,255,0.15);
 }
 
 .floating-brand {

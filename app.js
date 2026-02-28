@@ -34,7 +34,7 @@ mapboxgl.accessToken = MAPBOX_TOKEN;
 const map = new mapboxgl.Map({ 
     container: 'map', 
     style: 'mapbox://styles/mapbox/dark-v11', 
-    center: [-96.797, 32.776], 
+    center: [-96.797, 32.776], // Default Dallas fallback
     zoom: 11, 
     attributionControl: false,
     boxZoom: false 
@@ -55,6 +55,38 @@ const INSPECTOR_PALETTE = [
     { bg: '#bcf60c', text: '#000000' }, 
     { bg: '#3f51b5', text: '#ffffff' }  
 ];
+
+function updateInspectorDropdown() {
+    const filterSelect = document.getElementById('inspector-filter');
+    if (!filterSelect || viewMode !== 'manager' || inspectors.length === 0) return;
+
+    const validInspectorIds = new Set();
+    stops.forEach(s => {
+        const status = (s.status || '').toLowerCase();
+        if (status !== 'routed' && status !== 'cancelled' && status !== 'deleted' && !status.includes('unfound') && s.driverId) {
+            validInspectorIds.add(s.driverId);
+        }
+    });
+
+    const currentVal = filterSelect.value || 'all';
+    let filterHtml = '<option value="all">All Inspectors</option>';
+    
+    inspectors.forEach(i => { 
+        if (validInspectorIds.has(i.id)) {
+            filterHtml += `<option value="${i.id}">${i.name}</option>`; 
+        }
+    });
+    
+    filterSelect.innerHTML = filterHtml;
+    
+    // Auto-revert to 'all' if the currently selected inspector no longer has active stops
+    if (currentVal !== 'all' && !validInspectorIds.has(currentVal)) {
+        filterSelect.value = 'all';
+        handleInspectorFilterChange('all');
+    } else {
+        filterSelect.value = currentVal;
+    }
+}
 
 function handleInspectorFilterChange(val) {
     currentInspectorFilter = val;
@@ -180,29 +212,24 @@ async function loadData() {
             
             const sidebarDriverEl = document.getElementById('sidebar-driver-name');
             const filterSelect = document.getElementById('inspector-filter');
-            
-            const validInspectorIds = new Set();
-            stops.forEach(s => {
-                const status = (s.status || '').toLowerCase();
-                if (status !== 'routed' && status !== 'cancelled' && status !== 'deleted' && !status.includes('unfound') && s.driverId) {
-                    validInspectorIds.add(s.driverId);
-                }
-            });
 
             if (viewMode === 'manager' && data.tier && data.tier.toLowerCase() !== 'individual') {
                 if (sidebarDriverEl) sidebarDriverEl.style.display = 'none';
-                if (filterSelect) {
-                    filterSelect.style.display = 'block';
-                    let filterHtml = '<option value="all">All Inspectors</option>';
-                    inspectors.forEach(i => { 
-                        if (validInspectorIds.has(i.id)) {
-                            filterHtml += `<option value="${i.id}">${i.name}</option>`; 
-                        }
-                    });
-                    filterSelect.innerHTML = filterHtml;
-                }
+                if (filterSelect) filterSelect.style.display = 'block';
+                updateInspectorDropdown(); // Initialize dropdown
             } else {
                 if (sidebarDriverEl) sidebarDriverEl.innerText = displayName;
+            }
+            
+            // Default Map Centering Logic
+            let hasValidStops = stops.filter(s => isActiveStop(s) && s.lng && s.lat).length > 0;
+            if (!hasValidStops && data.companyAddress) {
+                const geoUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(data.companyAddress)}.json?access_token=${MAPBOX_TOKEN}`;
+                fetch(geoUrl).then(r => r.json()).then(geo => {
+                    if (geo.features && geo.features.length > 0) {
+                        map.flyTo({ center: geo.features[0].center, zoom: 11 });
+                    }
+                }).catch(err => console.error("Geocoding failed for company address.", err));
             }
         }
         
@@ -360,6 +387,7 @@ async function triggerBulkDelete() {
         await Promise.all(deletePromises);
         
         selectedIds.clear(); 
+        updateInspectorDropdown(); // Refresh dropdown in case the deleted order was the last one for an inspector
         render(); drawRoute(); updateSummary(); updateRouteTimes();
         document.getElementById('controls').style.display = 'flex'; 
 
@@ -409,9 +437,13 @@ async function handleInspectorChange(e, rowId, selectEl) {
     const overlay = document.getElementById('processing-overlay');
     if(overlay) overlay.style.display = 'flex';
     
-    try { for (const id of idsToUpdate) await processReassignDriver(id, newDriverName, newDriverId); } 
-    catch (err) { alert("Network error: Failed to update some orders."); }
+    try { 
+        for (const id of idsToUpdate) await processReassignDriver(id, newDriverName, newDriverId); 
+    } catch (err) { 
+        alert("Network error: Failed to update some orders."); 
+    }
     
+    updateInspectorDropdown(); // Update dropdown dynamically with new inspector
     render(); 
     if(overlay) overlay.style.display = 'none';
 }
@@ -718,6 +750,8 @@ async function handleUndo() {
                 const payload = { action: 'undoManagerChanges', originalStops: originalStops };
                 await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
                 stops = JSON.parse(JSON.stringify(originalStops));
+                
+                updateInspectorDropdown(); // Re-sync dropdown after Undo
                 document.getElementById('controls').style.display = 'none';
                 render(); drawRoute(); updateSummary();
             } catch(e) { 
@@ -797,10 +831,11 @@ function updateSelectionUI() {
         completeBtn.style.display = (has && viewMode !== 'manager') ? 'block' : 'none'; 
     }
     
+    // Only show manual move buttons if Route Divider is > 1
     for(let i=1; i<=3; i++) {
         const btn = document.getElementById(`move-r${i}-btn`);
         if(btn) {
-            if(viewMode === 'manager' && currentInspectorFilter !== 'all' && has && i <= currentRouteCount) {
+            if(viewMode === 'manager' && currentInspectorFilter !== 'all' && has && i <= currentRouteCount && currentRouteCount > 1) {
                 btn.style.display = 'block';
             } else {
                 btn.style.display = 'none';

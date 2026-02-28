@@ -63,11 +63,18 @@
             <button id="btn-reoptimize" class="btn-reoptimize" onclick="handleOptimize()">
                 <i class="fa-solid fa-wand-magic-sparkles"></i> Re-Optimize
             </button>
-            <div><span id="sum-dist">-- mi</span> | <span id="sum-time">-- hrs</span></div>
+            <div id="summary-metrics"><span id="sum-dist">-- mi</span> | <span id="sum-time">-- hrs</span></div>
         </div>
-        <div class="rocker">
-            <div id="btn-detailed" class="active" onclick="setDisplayMode('detailed')">Detailed</div>
-            <div id="btn-compact" onclick="setDisplayMode('compact')">Compact</div>
+        <div class="summary-right">
+            <div id="order-stats">
+                <span id="stat-total">0 Orders</span> | 
+                <span id="stat-due" style="color:var(--orange)">0 Due Today</span> | 
+                <span id="stat-past" style="color:var(--red)">0 Past Due</span>
+            </div>
+            <div class="rocker">
+                <div id="btn-detailed" class="active" onclick="setDisplayMode('detailed')">Detailed</div>
+                <div id="btn-compact" onclick="setDisplayMode('compact')">Compact</div>
+            </div>
         </div>
     </div>
     <div id="search-container"><input type="text" id="search-input" placeholder="Search address or client..." onkeyup="filterList()"></div>

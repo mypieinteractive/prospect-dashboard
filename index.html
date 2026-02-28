@@ -52,6 +52,7 @@
 <div id="sidebar">
     <div id="sidebar-brand" style="padding: 12px 15px; background: var(--bg-header); border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between;">
         <span id="sidebar-driver-name" style="font-size: 20px; font-weight: bold; color: var(--text-main); letter-spacing: 0.5px;"></span>
+        <select id="inspector-filter" onchange="handleInspectorFilterChange(this.value)" style="display:none;"></select>
         <img id="brand-logo-sidebar" src="https://raw.githubusercontent.com/mypieinteractive/prospect-dashboard/809b30bc160d3e353020425ce349c77544ed0452/Sproute%20Logo.png" style="height: 36px; width: auto;" alt="Brand Logo">
     </div>
 
@@ -104,7 +105,7 @@
     <div id="controls">
         <div style="text-align: center; font-weight: bold; color: var(--red); font-size: 12px; margin-bottom: 4px;">CHANGES MADE - SYNC REQUIRED</div>
         <div class="ctrl-row">
-            <button class="btn-glide" style="background:#444; color:white;" onclick="handleCalculate()">
+            <button id="btn-recalc" class="btn-glide" style="background:#444; color:white;" onclick="handleCalculate()">
                 <i class="fa-solid fa-calculator"></i> Re-Calculate
             </button>
             <button class="btn-glide" style="background:var(--bg-panel); color:var(--text-main); border:1px solid var(--border-color);" onclick="handleUndo()">

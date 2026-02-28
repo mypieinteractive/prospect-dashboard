@@ -19,6 +19,7 @@ let COMPANY_SERVICE_DELAY = 1;
 let PERMISSION_MODIFY = true;
 let PERMISSION_REOPTIMIZE = true;
 let sortableInstance = null;
+let currentRouteCount = 1; // Used for Routing View Divider
 
 const params = new URLSearchParams(window.location.search);
 const routeId = params.get('id');
@@ -29,7 +30,7 @@ const viewMode = params.get('view') || 'driver';
 document.body.className = `view-${viewMode}`;
 
 if (viewMode === 'manager' || viewMode === 'routing') {
-    document.getElementById('bulk-remove-btn').innerText = 'Remove selected';
+    document.getElementById('bulk-remove-btn').innerHTML = '<i class="fa-solid fa-trash-can"></i> Remove selected';
 }
 
 mapboxgl.accessToken = MAPBOX_TOKEN;
@@ -58,7 +59,14 @@ const INSPECTOR_PALETTE = [
     { bg: '#3f51b5', text: '#ffffff' }  
 ];
 
-// Helper: Dynamic coloring. If routing view, color by cluster instead of inspector
+// Helper: Filters out stops depending on the view Mode.
+function isActiveStop(s) {
+    if (viewMode === 'routing') {
+        return s.status && s.status.toLowerCase() === 'routed';
+    }
+    return s.status !== 'cancelled';
+}
+
 function getVisualStyle(stopData) {
     if (viewMode === 'routing' && stopData.hasOwnProperty('cluster')) {
         return INSPECTOR_PALETTE[stopData.cluster % INSPECTOR_PALETTE.length];
@@ -128,7 +136,6 @@ async function loadData() {
             const mapLogo = document.getElementById('brand-logo-map');
             const sidebarLogo = document.getElementById('brand-logo-sidebar');
 
-            // Apply Company Logo if applicable, otherwise fallback safely to Sproute logo
             if (data.tier && data.companyLogo && (data.tier.toLowerCase() === 'company')) {
                 if (mapLogo) mapLogo.src = data.companyLogo;
                 if (sidebarLogo) sidebarLogo.src = data.companyLogo;
@@ -151,19 +158,19 @@ async function loadData() {
         stops = rawStops.map(s => ({
             ...s,
             id: s.rowId || s.id,
-            cluster: 0 // Initialize to 0 for K-Means routing baseline
+            cluster: 0, // Baseline K-Means assignment
+            manualCluster: false // Locks nodes pushed by the user
         }));
 
         originalStops = JSON.parse(JSON.stringify(stops)); 
         if (stops.length > 0 && stops[0].eta) currentStartTime = stops[0].eta;
         
-        if(viewMode === 'map' || viewMode === 'list' || viewMode === 'manager' || viewMode === 'routing') {
+        if(viewMode === 'map' || viewMode === 'list' || viewMode === 'manager') {
             document.querySelector('.rocker').style.display = 'none';
         }
 
         render(); drawRoute(); updateSummary(); initSortable();
         
-        // Auto-trigger clustering visual if we're in routing view
         if(viewMode === 'routing') {
             document.getElementById('routing-controls').style.display = 'flex';
             liveClusterUpdate();
@@ -177,55 +184,92 @@ async function loadData() {
     }
 }
 
+// --- ROUTING UI BINDINGS ---
+function setRoutes(num) {
+    currentRouteCount = num;
+    for(let i=1; i<=3; i++) {
+        const btn = document.getElementById(`rbtn-${i}`);
+        if(btn) btn.classList.toggle('active', i === num);
+    }
+    // Wipe manual locks if we change the route divider entirely
+    stops.forEach(s => s.manualCluster = false); 
+    
+    liveClusterUpdate();
+    updateSelectionUI(); // hide unused manual move buttons
+}
+
+function moveSelectedToRoute(cIdx) {
+    selectedIds.forEach(id => {
+        const s = stops.find(st => st.id === id);
+        if (s) {
+            s.cluster = cIdx;
+            s.manualCluster = true; // Lock it to avoid K-Means overriding it
+        }
+    });
+    selectedIds.clear();
+    updateSelectionUI();
+    updateMarkerColors();
+    updateRouteTimes();
+}
+
+function updateRouteTimes() {
+    if(viewMode !== 'routing') return;
+    const activeStops = stops.filter(s => isActiveStop(s) && s.lng && s.lat);
+    for(let i=0; i<3; i++) {
+        const count = activeStops.filter(s => s.cluster === i).length;
+        const hrs = Math.ceil(count * 0.4);
+        const timeEl = document.getElementById(`rtime-${i+1}`);
+        if(timeEl) {
+            timeEl.innerText = count > 0 ? `${hrs} hrs` : '-- hrs';
+        }
+    }
+}
+
 // --- FRONTEND SPATIO-TEMPORAL K-MEANS CLUSTERING ---
 function liveClusterUpdate() {
     if(viewMode !== 'routing') return;
     
-    const k = parseInt(document.getElementById('slider-split').value);
+    const k = currentRouteCount;
     const w = parseInt(document.getElementById('slider-priority').value) / 100; // 0.0 to 1.0
     
-    document.getElementById('split-val').innerText = k + (k === 1 ? ' Day' : ' Days');
-    
-    const activeStops = stops.filter(s => s.status !== 'cancelled' && s.lng && s.lat);
+    const activeStops = stops.filter(s => isActiveStop(s) && s.lng && s.lat);
     if(activeStops.length === 0) return;
 
     // Reset if K = 1
     if(k === 1) {
-        activeStops.forEach(s => s.cluster = 0);
+        activeStops.forEach(s => { s.cluster = 0; s.manualCluster = false; });
         updateMarkerColors();
+        updateRouteTimes();
         return;
     }
 
-    // Initialize K centroids evenly across the array
     let centroids = [];
     for(let i=0; i<k; i++) {
         let idx = Math.floor(i * activeStops.length / k);
         centroids.push({ lat: activeStops[idx].lat, lng: activeStops[idx].lng });
     }
 
-    // K-Means loop (10 iterations max for speed)
     let today = new Date(); 
     today.setHours(0,0,0,0);
 
     for(let iter=0; iter<10; iter++) {
         activeStops.forEach(s => {
+            if (s.manualCluster) return; // Skip overrides
+
             let bestD = Infinity;
             let bestC = 0;
             let dueTime = s.dueDate ? new Date(s.dueDate).getTime() : Infinity;
             let daysUntilDue = Math.floor((dueTime - today.getTime()) / (1000*3600*24));
 
             centroids.forEach((c, cIdx) => {
-                // Geographic distance
                 let dLat = s.lat - c.lat;
                 let dLng = s.lng - c.lng;
                 let geoDist = Math.sqrt(dLat*dLat + dLng*dLng);
 
-                // Temporal Time Penalty Shift 
-                // High W pushes urgent dates into earlier clusters (lower cIdx)
                 let timePenalty = 0;
                 if(w > 0 && s.dueDate) {
                     if(daysUntilDue < cIdx) {
-                        timePenalty = (cIdx - Math.max(0, daysUntilDue)) * 0.2; // Aggressive scale factor
+                        timePenalty = (cIdx - Math.max(0, daysUntilDue)) * 0.2; 
                     }
                 }
 
@@ -235,7 +279,6 @@ function liveClusterUpdate() {
             s.cluster = bestC;
         });
 
-        // Recompute centroid centers based on blob shapes
         for(let i=0; i<k; i++) {
             let clusterStops = activeStops.filter(s => s.cluster === i);
             if(clusterStops.length > 0) {
@@ -248,9 +291,9 @@ function liveClusterUpdate() {
     }
     
     updateMarkerColors();
+    updateRouteTimes();
 }
 
-// Instantly recolor pins without destroying map objects
 function updateMarkerColors() {
     markers.forEach(m => {
         const stopData = stops.find(st => st.id === m._stopId);
@@ -267,12 +310,21 @@ function updateMarkerColors() {
 
 async function processDeleteOrder(rowId) {
     try {
-        stops = stops.filter(s => s.id !== rowId);
-        render(); drawRoute(); updateSummary();
-
-        const payload = { action: 'deleteOrder', rowId: rowId };
-        await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
-    } catch(e) { alert("Network error: Failed to delete order."); }
+        if (viewMode === 'routing') {
+            // Unroute visually immediately
+            const idx = stops.findIndex(s => s.id === rowId);
+            if (idx > -1) stops[idx].status = '';
+            render(); drawRoute(); updateSummary(); updateRouteTimes();
+            
+            await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'unrouteOrder', rowId: rowId }) });
+        } else {
+            // Delete locally immediately
+            stops = stops.filter(s => s.id !== rowId);
+            render(); drawRoute(); updateSummary();
+            
+            await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'deleteOrder', rowId: rowId }) });
+        }
+    } catch(e) { alert("Network error: Failed to modify order."); }
 }
 
 async function processReassignDriver(rowId, newDriverName, newDriverId) {
@@ -359,7 +411,7 @@ function render(isDraft = false) {
         list.appendChild(header);
     }
 
-    stops.filter(s => s.status !== 'cancelled').forEach((s, i) => {
+    stops.filter(s => isActiveStop(s)).forEach((s, i) => {
         const item = document.createElement('div');
         item.id = `item-${s.id}`;
         item.setAttribute('data-search', `${(s.address||'').toLowerCase()} ${(s.client||'').toLowerCase()}`);
@@ -459,19 +511,18 @@ function render(isDraft = false) {
             m._stopId = s.id; markers.push(m); bounds.extend([s.lng, s.lat]);
         }
     });
-    if (stops.filter(s=> s.lng && s.lat).length > 0) { initialBounds = bounds; map.fitBounds(bounds, { padding: 50, maxZoom: 15 }); }
+    if (stops.filter(s=> isActiveStop(s) && s.lng && s.lat).length > 0) { initialBounds = bounds; map.fitBounds(bounds, { padding: 50, maxZoom: 15 }); }
     
     updateSelectionUI();
 }
 
 function updateSummary() {
-    const active = stops.filter(s => s.status !== 'cancelled' && s.status !== 'completed');
+    const active = stops.filter(s => isActiveStop(s) && s.status !== 'completed');
     let totalMi = 0;
     active.forEach(s => totalMi += parseFloat(s.dist || 0));
     document.getElementById('sum-dist').innerText = `${totalMi.toFixed(1)} mi`;
     document.getElementById('sum-time').innerText = `${Math.ceil(active.length * 0.4)} hrs`;
     
-    // Process new Order Stats
     const totalOrders = active.length;
     let dueToday = 0;
     let pastDue = 0;
@@ -511,7 +562,7 @@ async function handleCalculate() {
     if (overlay) overlay.style.display = 'flex';
 
     try {
-        const activeStops = stops.filter(s => s.status !== 'cancelled' && s.lng && s.lat);
+        const activeStops = stops.filter(s => isActiveStop(s) && s.lng && s.lat);
         if (activeStops.length < 2) { alert("Not enough valid stops."); return; }
 
         const MAX_WAYPOINTS = 25; 
@@ -622,9 +673,22 @@ function updateSelectionUI() {
         m.getElement().classList.toggle('bulk-selected', selectedIds.has(m._stopId)); 
         if(selectedIds.has(m._stopId)) { const row = document.getElementById(`item-${m._stopId}`); if (row) row.classList.add('selected'); } 
     }); 
+    
     const has = selectedIds.size>0; 
     document.getElementById('bulk-remove-btn').style.display = (has && PERMISSION_MODIFY) ? 'block' : 'none'; 
-    document.getElementById('bulk-complete-btn').style.display = has ? 'block' : 'none'; 
+    document.getElementById('bulk-complete-btn').style.display = (has && viewMode !== 'routing') ? 'block' : 'none'; 
+    
+    // Manage dynamic Move buttons for Routing view
+    for(let i=1; i<=3; i++) {
+        const btn = document.getElementById(`move-r${i}-btn`);
+        if(btn) {
+            if(viewMode === 'routing' && has && i <= currentRouteCount) {
+                btn.style.display = 'block';
+            } else {
+                btn.style.display = 'none';
+            }
+        }
+    }
 }
 
 function focusPin(id) { const tgt = stops.find(s=>s.id==id); if(tgt && tgt.lng && tgt.lat) map.flyTo({ center: [tgt.lng, tgt.lat] }); }
@@ -637,7 +701,7 @@ function drawRoute() {
         if (map.getSource('route')) map.getSource('route').setData({ "type": "Feature", "geometry": { "type": "LineString", "coordinates": [] } });
         return;
     }
-    const act = stops.filter(s => s.status !== 'cancelled' && s.lng && s.lat); 
+    const act = stops.filter(s => isActiveStop(s) && s.lng && s.lat); 
     if (act.length < 2) return; 
     const crd = act.map(s => [s.lng, s.lat]); 
     
@@ -700,11 +764,9 @@ async function finalizeSync(type) {
         startTime: currentStartTime, startAddr: startAddr, endAddr: endAddr 
     };
 
-    // NEW: If Routing mode, send clusters instead of flat stops
     if (viewMode === 'routing') {
-        const k = parseInt(document.getElementById('slider-split').value);
         let clusteredArrays = [];
-        for(let i = 0; i < k; i++) {
+        for(let i = 0; i < currentRouteCount; i++) {
             let itemsInCluster = stops.filter(s => s.cluster === i);
             if (itemsInCluster.length > 0) clusteredArrays.push(itemsInCluster);
         }

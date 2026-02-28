@@ -143,6 +143,16 @@ async function loadData() {
         const data = await res.json();
         let rawStops = Array.isArray(data) ? data : (data.stops || []);
         
+        stops = rawStops.map(s => ({
+            ...s,
+            id: s.rowId || s.id,
+            cluster: 0, 
+            manualCluster: false 
+        }));
+
+        originalStops = JSON.parse(JSON.stringify(stops)); 
+        if (stops.length > 0 && stops[0].eta) currentStartTime = stops[0].eta;
+
         if (!Array.isArray(data)) {
             inspectors = data.inspectors || []; 
             if (data.serviceDelay !== undefined) COMPANY_SERVICE_DELAY = parseInt(data.serviceDelay); 
@@ -172,12 +182,25 @@ async function loadData() {
             const sidebarDriverEl = document.getElementById('sidebar-driver-name');
             const filterSelect = document.getElementById('inspector-filter');
             
+            // Build the valid inspector list dynamically
+            const validInspectorIds = new Set();
+            stops.forEach(s => {
+                const status = (s.status || '').toLowerCase();
+                if (status !== 'routed' && status !== 'cancelled' && status !== 'removed' && s.driverId) {
+                    validInspectorIds.add(s.driverId);
+                }
+            });
+
             if (viewMode === 'manager' && data.tier && data.tier.toLowerCase() !== 'individual') {
                 if (sidebarDriverEl) sidebarDriverEl.style.display = 'none';
                 if (filterSelect) {
                     filterSelect.style.display = 'block';
                     let filterHtml = '<option value="all">All Inspectors</option>';
-                    inspectors.forEach(i => { filterHtml += `<option value="${i.id}">${i.name}</option>`; });
+                    inspectors.forEach(i => { 
+                        if (validInspectorIds.has(i.id)) {
+                            filterHtml += `<option value="${i.id}">${i.name}</option>`; 
+                        }
+                    });
                     filterSelect.innerHTML = filterHtml;
                 }
             } else {
@@ -187,16 +210,6 @@ async function loadData() {
         
         const optBtn = document.getElementById('btn-reoptimize');
         if (optBtn) optBtn.style.display = PERMISSION_REOPTIMIZE ? 'flex' : 'none';
-        
-        stops = rawStops.map(s => ({
-            ...s,
-            id: s.rowId || s.id,
-            cluster: 0, 
-            manualCluster: false 
-        }));
-
-        originalStops = JSON.parse(JSON.stringify(stops)); 
-        if (stops.length > 0 && stops[0].eta) currentStartTime = stops[0].eta;
         
         if(viewMode === 'map' || viewMode === 'list' || viewMode === 'manager') {
             document.querySelector('.rocker').style.display = 'none';
@@ -486,7 +499,7 @@ function render(isDraft = false) {
                 <div class="col-due ${urgencyClass}">${dueFmt}</div>
                 ${inspectorHtml}
                 <div class="col-addr">${(s.address||'').split(',')[0]}</div>
-                <div class="col-app">IA</div>
+                <div class="col-app">${s.app || '--'}</div>
                 <div class="col-client">${s.client || '--'}</div>
                 <div class="col-type">${s.type || '--'}</div>
             `;
@@ -498,7 +511,7 @@ function render(isDraft = false) {
             item.innerHTML = `
                 <div class="stop-sidebar ${urgencyClass}">${i + 1}</div>
                 ${handleHtml}
-                <div class="csv-box">${(s.client||"??").substring(0,2).toUpperCase()}</div>
+                <div class="csv-box">${(s.app || "--").substring(0,2).toUpperCase()}</div>
                 <div class="stop-content">
                     <b>${(s.address||'').split(',')[0]}</b>
                     <div class="row-meta">${metaDisplay}</div>

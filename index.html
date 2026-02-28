@@ -52,13 +52,12 @@
 <div id="sidebar">
     <div id="sidebar-brand" style="padding: 12px 15px; background: var(--bg-header); border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between;">
         <span id="sidebar-driver-name" style="font-size: 20px; font-weight: bold; color: var(--text-main); letter-spacing: 0.5px;"></span>
-        <select id="inspector-filter" onchange="handleInspectorFilterChange(this.value)" style="display:none;"></select>
+        <select id="inspector-filter" class="insp-select" onchange="handleInspectorFilterChange(this.value)" style="display:none; font-size: 15px; padding: 8px 30px 8px 12px; width: auto; max-width: 65%; font-weight: bold;"></select>
         <img id="brand-logo-sidebar" src="https://raw.githubusercontent.com/mypieinteractive/prospect-dashboard/809b30bc160d3e353020425ce349c77544ed0452/Sproute%20Logo.png" style="height: 36px; width: auto;" alt="Brand Logo">
     </div>
 
     <div id="routing-controls">
-        <label style="font-size:13px; font-weight:bold; color:var(--text-main);">Route Divider</label>
-        <div id="route-divider-group" style="display:flex; gap:8px; margin-top:8px;">
+        <div id="route-divider-group" style="display:flex; gap:8px;">
             <div class="route-btn active" onclick="setRoutes(1)" id="rbtn-1" style="--route-color: #2563eb;">
                 <div class="rbtn-title">1 Route</div>
                 <div class="rbtn-time" id="rtime-1">-- hrs</div>
@@ -94,13 +93,16 @@
                 <span id="stat-due" style="color:var(--orange)">0 Due Today</span> | 
                 <span id="stat-past" style="color:var(--red)">0 Past Due</span>
             </div>
-            <div class="rocker">
-                <div id="btn-detailed" class="active" onclick="setDisplayMode('detailed')">Detailed</div>
-                <div id="btn-compact" onclick="setDisplayMode('compact')">Compact</div>
-            </div>
         </div>
     </div>
-    <div id="search-container"><input type="text" id="search-input" placeholder="Search address or client..." onkeyup="filterList()"></div>
+    
+    <div id="search-container">
+        <input type="text" id="search-input" placeholder="Search address or client..." onkeyup="filterList()">
+        <div class="rocker">
+            <div id="btn-detailed" class="active" onclick="setDisplayMode('detailed')">Detailed</div>
+            <div id="btn-compact" onclick="setDisplayMode('compact')">Compact</div>
+        </div>
+    </div>
     
     <div id="controls">
         <div style="text-align: center; font-weight: bold; color: var(--red); font-size: 12px; margin-bottom: 4px;">CHANGES MADE - SYNC REQUIRED</div>

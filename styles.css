@@ -45,14 +45,26 @@ body.view-manager { flex-direction: row; }
 body.view-manager #map-wrapper { flex: 1; height: 100vh; width: auto; }
 body.view-manager #sidebar { width: 50vw; min-width: 10vw; height: 100vh; border-left: none; flex: none; }
 body.view-manager #bulk-complete-btn { display: none !important; }
-body.view-manager #summary-metrics { display: none !important; } /* Hides dist/time for manager */
+body.view-manager #summary-metrics { display: none !important; } 
 
 /* ROUTING VIEW (New for V198.0) */
 body.view-routing { flex-direction: row; }
 body.view-routing #map-wrapper { flex: 1; height: 100vh; width: auto; }
 body.view-routing #sidebar { width: 400px; height: 100vh; border-right: 2px solid var(--border-color); }
+body.view-routing .stop-actions { display: none !important; } /* Hide checks and nav arrows in routing view */
+
 #routing-controls { display: none; padding: 15px; background: var(--bg-panel); border-bottom: 1px solid var(--border-color); }
-body.view-routing #routing-controls { display: flex; flex-direction: column; gap: 15px; }
+body.view-routing #routing-controls { display: flex; flex-direction: column; }
+
+/* ROUTE DIVIDER BUTTONS */
+.route-btn { 
+    flex: 1; border: 2px solid transparent; background: var(--bg-base); 
+    border-radius: 6px; padding: 8px 0; text-align: center; cursor: pointer; 
+    transition: 0.2s; opacity: 0.6; 
+}
+.route-btn.active { border-color: var(--route-color); opacity: 1; background: rgba(255,255,255,0.05); }
+.rbtn-title { font-size: 13px; font-weight: bold; color: var(--text-main); pointer-events: none; }
+.rbtn-time { font-size: 11px; color: var(--text-muted); pointer-events: none; margin-top: 2px; }
 
 /* SLIDER STYLING */
 input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
@@ -118,34 +130,23 @@ body:not(.view-map) #map-brand { display: none; }
 .rocker div { padding: 4px 10px; cursor: pointer; border-radius: 4px; transition: 0.2s; color: var(--text-muted); font-weight: normal; font-size: 15px; }
 .rocker div.active { background: var(--blue); color: white; }
 
-/* Re-positioned to Top Right, matching margins of the shift-hint */
 .map-overlay-btns { position: absolute; top: 15px; right: 15px; z-index: 200; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
-
-/* Prevents buttons from overlapping the floating logo in Map-Only View */
 body.view-map .map-overlay-btns { top: 60px; } 
 
-/* Glide-esque Styling for Map Buttons */
 .floating-btn { 
-    border-radius: 8px; 
-    padding: 10px 14px; 
-    font-weight: normal; 
-    font-size: 13px; 
-    cursor: pointer; 
-    box-shadow: 0 1px 3px rgba(0,0,0,0.3); 
-    display: none; 
-    transition: opacity 0.2s;
+    border-radius: 8px; padding: 10px 14px; font-weight: normal; 
+    font-size: 13px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.3); 
+    display: none; transition: opacity 0.2s;
+    background: var(--bg-panel); color: var(--text-main); border: 1px solid var(--border-color);
 }
 .floating-btn i { margin-right: 6px; }
 .floating-btn:active { opacity: 0.7; }
 #bulk-remove-btn { background: var(--red); color: white; border: none; }
 #bulk-complete-btn { background: var(--green); color: white; border: none; }
-#reset-view-btn { display: block; background: var(--bg-panel); color: var(--text-main); border: 1px solid var(--border-color); }
 
 #sidebar { 
     display: flex; flex-direction: column; background: var(--bg-panel); z-index: 10; 
-    container-type: inline-size; 
-    container-name: sidebar;
-    overflow-x: hidden; 
+    container-type: inline-size; container-name: sidebar; overflow-x: hidden; 
 }
 
 #search-container { padding: 8px; border-bottom: 1px solid var(--border-color); background: var(--bg-panel); }

@@ -118,11 +118,28 @@ body:not(.view-map) #map-brand { display: none; }
 .rocker div { padding: 4px 10px; cursor: pointer; border-radius: 4px; transition: 0.2s; color: var(--text-muted); font-weight: normal; font-size: 15px; }
 .rocker div.active { background: var(--blue); color: white; }
 
-/* Re-positioned to Top Right */
-.map-overlay-btns { position: absolute; top: 70px; right: 15px; z-index: 200; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
-.floating-btn { background: var(--bg-panel); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 20px; padding: 8px 16px; font-weight: bold; font-size: 13px; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.5); display: none; }
+/* Re-positioned to Top Right, matching margins of the shift-hint */
+.map-overlay-btns { position: absolute; top: 15px; right: 15px; z-index: 200; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+
+/* Prevents buttons from overlapping the floating logo in Map-Only View */
+body.view-map .map-overlay-btns { top: 60px; } 
+
+/* Glide-esque Styling for Map Buttons */
+.floating-btn { 
+    border-radius: 8px; 
+    padding: 10px 14px; 
+    font-weight: normal; 
+    font-size: 13px; 
+    cursor: pointer; 
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3); 
+    display: none; 
+    transition: opacity 0.2s;
+}
+.floating-btn i { margin-right: 6px; }
+.floating-btn:active { opacity: 0.7; }
 #bulk-remove-btn { background: var(--red); color: white; border: none; }
 #bulk-complete-btn { background: var(--green); color: white; border: none; }
+#reset-view-btn { display: block; background: var(--bg-panel); color: var(--text-main); border: 1px solid var(--border-color); }
 
 #sidebar { 
     display: flex; flex-direction: column; background: var(--bg-panel); z-index: 10; 

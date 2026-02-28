@@ -34,7 +34,7 @@ mapboxgl.accessToken = MAPBOX_TOKEN;
 const map = new mapboxgl.Map({ 
     container: 'map', 
     style: 'mapbox://styles/mapbox/dark-v11', 
-    center: [-96.797, 32.776], // Default Dallas fallback
+    center: [-96.797, 32.776], // Default fallback
     zoom: 11, 
     attributionControl: false,
     boxZoom: false 
@@ -216,12 +216,11 @@ async function loadData() {
             if (viewMode === 'manager' && data.tier && data.tier.toLowerCase() !== 'individual') {
                 if (sidebarDriverEl) sidebarDriverEl.style.display = 'none';
                 if (filterSelect) filterSelect.style.display = 'block';
-                updateInspectorDropdown(); // Initialize dropdown
+                updateInspectorDropdown(); 
             } else {
                 if (sidebarDriverEl) sidebarDriverEl.innerText = displayName;
             }
             
-            // Default Map Centering Logic
             let hasValidStops = stops.filter(s => isActiveStop(s) && s.lng && s.lat).length > 0;
             if (!hasValidStops && data.companyAddress) {
                 const geoUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(data.companyAddress)}.json?access_token=${MAPBOX_TOKEN}`;
@@ -378,16 +377,21 @@ async function triggerBulkDelete() {
         const overlay = document.getElementById('processing-overlay');
         if(overlay) overlay.style.display = 'flex';
 
-        const deletePromises = Array.from(selectedIds).map(id => {
-            const idx = stops.findIndex(s => s.id === id);
-            if (idx > -1) stops[idx].status = 'Deleted';
-            return fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'markOrderDeleted', rowId: id }) });
-        });
-        
-        await Promise.all(deletePromises);
+        try {
+            const deletePromises = Array.from(selectedIds).map(id => {
+                const idx = stops.findIndex(s => s.id === id);
+                if (idx > -1) stops[idx].status = 'Deleted';
+                return fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'markOrderDeleted', rowId: id }) });
+            });
+            
+            await Promise.all(deletePromises);
+        } catch (err) {
+            alert("A network or server error occurred. Please check the Google Apps Script Execution Log.");
+            console.error("Bulk Delete Error:", err);
+        }
         
         selectedIds.clear(); 
-        updateInspectorDropdown(); // Refresh dropdown in case the deleted order was the last one for an inspector
+        updateInspectorDropdown(); 
         render(); drawRoute(); updateSummary(); updateRouteTimes();
         document.getElementById('controls').style.display = 'flex'; 
 
@@ -400,13 +404,18 @@ async function triggerBulkUnroute() {
         const overlay = document.getElementById('processing-overlay');
         if(overlay) overlay.style.display = 'flex';
 
-        const unroutePromises = Array.from(selectedIds).map(id => {
-            const idx = stops.findIndex(s => s.id === id);
-            if (idx > -1) stops[idx].status = '';
-            return fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'unrouteOrder', rowId: id }) });
-        });
-        
-        await Promise.all(unroutePromises);
+        try {
+            const unroutePromises = Array.from(selectedIds).map(id => {
+                const idx = stops.findIndex(s => s.id === id);
+                if (idx > -1) stops[idx].status = '';
+                return fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'unrouteOrder', rowId: id }) });
+            });
+            
+            await Promise.all(unroutePromises);
+        } catch (err) {
+            alert("A network or server error occurred. Please check the Google Apps Script Execution Log.");
+            console.error("Bulk Unroute Error:", err);
+        }
         
         selectedIds.clear(); 
         render(); drawRoute(); updateSummary(); updateRouteTimes();
@@ -443,7 +452,7 @@ async function handleInspectorChange(e, rowId, selectEl) {
         alert("Network error: Failed to update some orders."); 
     }
     
-    updateInspectorDropdown(); // Update dropdown dynamically with new inspector
+    updateInspectorDropdown(); 
     render(); 
     if(overlay) overlay.style.display = 'none';
 }
@@ -751,7 +760,7 @@ async function handleUndo() {
                 await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
                 stops = JSON.parse(JSON.stringify(originalStops));
                 
-                updateInspectorDropdown(); // Re-sync dropdown after Undo
+                updateInspectorDropdown(); 
                 document.getElementById('controls').style.display = 'none';
                 render(); drawRoute(); updateSummary();
             } catch(e) { 
@@ -831,7 +840,6 @@ function updateSelectionUI() {
         completeBtn.style.display = (has && viewMode !== 'manager') ? 'block' : 'none'; 
     }
     
-    // Only show manual move buttons if Route Divider is > 1
     for(let i=1; i<=3; i++) {
         const btn = document.getElementById(`move-r${i}-btn`);
         if(btn) {

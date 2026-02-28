@@ -12,7 +12,7 @@
     
     <link rel="stylesheet" href="styles.css">
 </head>
-<body class="view-driver">
+<body class="view-driver manager-all-inspectors">
 
 <div id="processing-overlay">Processing...</div>
 
@@ -30,8 +30,11 @@
         <button id="bulk-complete-btn" class="floating-btn" onclick="triggerBulkComplete()">
             <i class="fa-solid fa-circle-check"></i> Mark selected as completed
         </button>
-        <button id="bulk-remove-btn" class="floating-btn" onclick="triggerBulkDelete()">
-            <i class="fa-solid fa-trash-can"></i> Remove selected from route
+        <button id="bulk-unroute-btn" class="floating-btn" onclick="triggerBulkUnroute()">
+            <i class="fa-solid fa-route"></i> Remove selected from route
+        </button>
+        <button id="bulk-delete-btn" class="floating-btn" onclick="triggerBulkDelete()">
+            <i class="fa-solid fa-trash-can"></i> Delete selected
         </button>
         
         <button id="move-r1-btn" class="floating-btn manual-move" onclick="moveSelectedToRoute(0)" style="border-left: 4px solid #2563eb;">

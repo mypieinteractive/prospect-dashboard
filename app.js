@@ -125,11 +125,17 @@ async function loadData() {
                 if (typeof data.permissions.reoptimize !== 'undefined') PERMISSION_REOPTIMIZE = data.permissions.reoptimize;
             }
             
+            const mapLogo = document.getElementById('brand-logo-map');
+            const sidebarLogo = document.getElementById('brand-logo-sidebar');
+
+            // Apply Company Logo if applicable, otherwise fallback safely to Sproute logo
             if (data.tier && data.companyLogo && (data.tier.toLowerCase() === 'company')) {
-                const mapLogo = document.getElementById('brand-logo-map');
-                const sidebarLogo = document.getElementById('brand-logo-sidebar');
                 if (mapLogo) mapLogo.src = data.companyLogo;
                 if (sidebarLogo) sidebarLogo.src = data.companyLogo;
+            } else {
+                const sprouteLogoUrl = 'https://raw.githubusercontent.com/mypieinteractive/prospect-dashboard/809b30bc160d3e353020425ce349c77544ed0452/Sproute%20Logo.png';
+                if (mapLogo) mapLogo.src = sprouteLogoUrl;
+                if (sidebarLogo) sidebarLogo.src = sprouteLogoUrl;
             }
             
             let displayName = data.displayName || 'Sproute'; 
@@ -437,7 +443,8 @@ function render(isDraft = false) {
             el.innerHTML = `<div class="pin-visual" style="background-color: ${style.bg}; color: ${style.text};"><span>${i + 1}</span></div>`;
 
             if (urgencyClass) {
-                const w = document.createElement('div'); w.className = 'marker-warning'; w.innerText = '⚠️';
+                const w = document.createElement('div'); w.className = 'marker-warning'; 
+                w.innerText = (urgencyClass === 'past-due') ? '⚠️' : '❕';
                 el.appendChild(w);
             }
             
@@ -463,6 +470,31 @@ function updateSummary() {
     active.forEach(s => totalMi += parseFloat(s.dist || 0));
     document.getElementById('sum-dist').innerText = `${totalMi.toFixed(1)} mi`;
     document.getElementById('sum-time').innerText = `${Math.ceil(active.length * 0.4)} hrs`;
+    
+    // Process new Order Stats
+    const totalOrders = active.length;
+    let dueToday = 0;
+    let pastDue = 0;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    active.forEach(s => {
+        if(s.dueDate) {
+            const dueTime = new Date(s.dueDate);
+            dueTime.setHours(0, 0, 0, 0);
+            if(dueTime < today) pastDue++;
+            else if(dueTime.getTime() === today.getTime()) dueToday++;
+        }
+    });
+
+    const statTotalEl = document.getElementById('stat-total');
+    const statDueEl = document.getElementById('stat-due');
+    const statPastEl = document.getElementById('stat-past');
+
+    if(statTotalEl) statTotalEl.innerText = `${totalOrders} Orders`;
+    if(statDueEl) statDueEl.innerText = `${dueToday} Due Today`;
+    if(statPastEl) statPastEl.innerText = `${pastDue} Past Due`;
 }
 
 function formatTime(dateObj) {

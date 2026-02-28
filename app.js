@@ -18,8 +18,7 @@ const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzgh2KCzfdWbOmdVq_e
 let COMPANY_SERVICE_DELAY = 1; 
 let PERMISSION_MODIFY = true;
 let PERMISSION_REOPTIMIZE = true;
-let sortableInstance = null;
-let sortableRouted = null;
+let sortableInstances = [];
 let sortableUnrouted = null;
 let currentRouteCount = 1; 
 let currentInspectorFilter = 'all';
@@ -36,7 +35,7 @@ mapboxgl.accessToken = MAPBOX_TOKEN;
 const map = new mapboxgl.Map({ 
     container: 'map', 
     style: 'mapbox://styles/mapbox/dark-v11', 
-    center: [-96.797, 32.776], // Default fallback
+    center: [-96.797, 32.776],
     zoom: 11, 
     attributionControl: false,
     boxZoom: false 
@@ -58,6 +57,16 @@ const INSPECTOR_PALETTE = [
     { bg: '#3f51b5', text: '#ffffff' }  
 ];
 
+function parseEtaToMinutes(etaStr) {
+    if (!etaStr || etaStr === '--') return 99999;
+    let match = String(etaStr).match(/(\d+):(\d+)\s*(AM|PM)?/i);
+    if (!match) return 99999;
+    let h = parseInt(match[1]), m = parseInt(match[2]), ampm = (match[3]||'').toUpperCase();
+    if (ampm === 'PM' && h < 12) h += 12;
+    if (ampm === 'AM' && h === 12) h = 0;
+    return h * 60 + m;
+}
+
 function updateInspectorDropdown() {
     const filterSelect = document.getElementById('inspector-filter');
     if (!filterSelect || viewMode !== 'manager' || inspectors.length === 0) return;
@@ -65,7 +74,7 @@ function updateInspectorDropdown() {
     const validInspectorIds = new Set();
     stops.forEach(s => {
         const status = (s.status || '').toLowerCase();
-        if (status !== 'routed' && status !== 'cancelled' && status !== 'deleted' && !status.includes('unfound') && s.driverId) {
+        if (status !== 'cancelled' && status !== 'deleted' && s.driverId) {
             validInspectorIds.add(s.driverId);
         }
     });
@@ -80,7 +89,6 @@ function updateInspectorDropdown() {
     });
     
     filterSelect.innerHTML = filterHtml;
-    
     if (currentVal !== 'all' && !validInspectorIds.has(currentVal)) {
         filterSelect.value = 'all';
         handleInspectorFilterChange('all');
@@ -113,7 +121,6 @@ function isActiveStop(s) {
     if (viewMode === 'manager' && currentInspectorFilter !== 'all') {
         if (s.driverId !== currentInspectorFilter) active = false;
     }
-    
     return active;
 }
 
@@ -178,7 +185,7 @@ async function loadData() {
         stops = rawStops.map(s => ({
             ...s,
             id: s.rowId || s.id,
-            cluster: 0, 
+            cluster: s.cluster || 0, 
             manualCluster: false 
         }));
 
@@ -233,9 +240,6 @@ async function loadData() {
             }
         }
         
-        const optBtn = document.getElementById('btn-reoptimize');
-        if (optBtn) optBtn.style.display = PERMISSION_REOPTIMIZE ? 'flex' : 'none';
-        
         if(viewMode === 'map' || viewMode === 'list' || viewMode === 'manager') {
             document.querySelector('.rocker').style.display = 'none';
         }
@@ -251,6 +255,30 @@ async function loadData() {
 }
 
 // --- ROUTING UI BINDINGS ---
+function updateRoutingUI() {
+    if(viewMode !== 'manager' || currentInspectorFilter === 'all') return;
+    
+    const activeStops = stops.filter(s => isActiveStop(s));
+    const routedCount = activeStops.filter(s => (s.status||'').toLowerCase() === 'routed').length;
+    const dividerGroup = document.getElementById('route-divider-group');
+    const priorityCont = document.getElementById('priority-container');
+    const btnGen = document.getElementById('btn-generate-route');
+
+    if (activeStops.length <= 25) {
+        if(dividerGroup) dividerGroup.style.display = 'none';
+        if(priorityCont) priorityCont.style.display = 'none';
+    } else {
+        if(dividerGroup) dividerGroup.style.display = 'flex';
+        if(priorityCont) priorityCont.style.display = 'flex';
+    }
+
+    if (routedCount > 0) {
+        if (btnGen) btnGen.style.display = 'none';
+    } else {
+        if (btnGen) btnGen.style.display = 'flex';
+    }
+}
+
 function setRoutes(num) {
     currentRouteCount = num;
     for(let i=1; i<=3; i++) {
@@ -258,7 +286,6 @@ function setRoutes(num) {
         if(btn) btn.classList.toggle('active', i === num);
     }
     stops.forEach(s => s.manualCluster = false); 
-    
     liveClusterUpdate();
     updateSelectionUI(); 
 }
@@ -290,7 +317,27 @@ function updateRouteTimes() {
     }
 }
 
-// --- FRONTEND SPATIO-TEMPORAL K-MEANS CLUSTERING ---
+async function handleGenerateRoute() {
+    if (currentInspectorFilter === 'all') return;
+    const insp = inspectors.find(i => i.id === currentInspectorFilter);
+    if (!insp) return;
+
+    const overlay = document.getElementById('processing-overlay');
+    if(overlay) overlay.style.display = 'flex';
+
+    try {
+        await fetch(WEB_APP_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'generateRoute', inspectorName: insp.name, driverId: insp.id })
+        });
+        alert("Route Generation Requested.");
+    } catch (e) {
+        alert("Failed to request route generation. Check logs.");
+    } finally {
+        if(overlay) overlay.style.display = 'none';
+    }
+}
+
 function liveClusterUpdate() {
     if(viewMode !== 'manager' || currentInspectorFilter === 'all') return;
     
@@ -401,9 +448,7 @@ async function triggerBulkDelete() {
         updateInspectorDropdown(); 
         render(); drawRoute(); updateSummary(); updateRouteTimes();
         
-        if (affectedRouted) {
-            document.getElementById('controls').style.display = 'flex'; 
-        }
+        if (affectedRouted) document.getElementById('controls').style.display = 'flex'; 
 
         setTimeout(() => { if(overlay) overlay.style.display = 'none'; }, 2000);
     } 
@@ -423,7 +468,7 @@ async function triggerBulkUnroute() {
             
             await Promise.all(unroutePromises);
         } catch (err) {
-            alert("A network or server error occurred. Please check the Google Apps Script Execution Log.");
+            alert("A network or server error occurred.");
             console.error("Bulk Unroute Error:", err);
         }
         
@@ -464,17 +509,12 @@ async function handleInspectorChange(e, rowId, selectEl) {
     
     try { 
         for (const id of idsToUpdate) await processReassignDriver(id, newDriverName, newDriverId); 
-    } catch (err) { 
-        alert("Network error: Failed to update some orders."); 
-    }
+    } catch (err) { alert("Network error: Failed to update some orders."); }
     
     updateInspectorDropdown(); 
     render(); 
     
-    if (affectedRouted) {
-        document.getElementById('controls').style.display = 'flex'; 
-    }
-    
+    if (affectedRouted) document.getElementById('controls').style.display = 'flex'; 
     if(overlay) overlay.style.display = 'none';
 }
 
@@ -509,14 +549,32 @@ function setDisplayMode(mode) {
     render();
 }
 
-function createSubheading(text) {
+function createRouteSubheading(clusterNum, clusterStops) {
+    let totalMi = 0;
+    let dueToday = 0;
+    let pastDue = 0;
+    const today = new Date(); today.setHours(0,0,0,0);
+
+    clusterStops.forEach(s => {
+        totalMi += parseFloat(s.dist || 0);
+        if(s.dueDate) {
+            const dueTime = new Date(s.dueDate); dueTime.setHours(0, 0, 0, 0);
+            if(dueTime < today) pastDue++;
+            else if(dueTime.getTime() === today.getTime()) dueToday++;
+        }
+    });
+
+    let hrs = Math.ceil(clusterStops.length * 0.4);
+    let dueText = pastDue > 0 ? `<span style="color:var(--red)">${pastDue} Past Due</span>` : (dueToday > 0 ? `<span style="color:var(--orange)">${dueToday} Due Today</span>` : `0 Due`);
+    
     const el = document.createElement('div');
     el.className = 'list-subheading';
-    el.innerText = text;
+    el.innerHTML = `<span>ROUTE ${clusterNum + 1}</span><span class="route-summary-text">${totalMi.toFixed(1)} mi | ${hrs} hrs | ${clusterStops.length} stops | ${dueText}</span>`;
     return el;
 }
 
 function render(isDraft = false) {
+    updateRoutingUI();
     const listContainer = document.getElementById('stop-list');
     listContainer.innerHTML = ''; 
     markers.forEach(m => m.remove()); 
@@ -652,22 +710,56 @@ function render(isDraft = false) {
     if (viewMode === 'manager' && currentInspectorFilter !== 'all') {
         const unroutedStops = activeStops.filter(s => (s.status||'').toLowerCase() !== 'routed' && (s.status||'').toLowerCase() !== 'completed');
         const routedStops = activeStops.filter(s => (s.status||'').toLowerCase() === 'routed' || (s.status||'').toLowerCase() === 'completed');
+        routedStops.sort((a,b) => parseEtaToMinutes(a.eta) - parseEtaToMinutes(b.eta));
+
+        if (unroutedStops.length > 0) {
+            const el = document.createElement('div'); el.className = 'list-subheading'; el.innerText = 'UNROUTED ORDERS';
+            listContainer.appendChild(el);
+            const unroutedDiv = document.createElement('div');
+            unroutedDiv.id = 'unrouted-list';
+            unroutedDiv.style.minHeight = '30px'; 
+            listContainer.appendChild(unroutedDiv);
+            unroutedStops.forEach((s, i) => { unroutedDiv.appendChild(processStop(s, i, false)); });
+        }
         
-        let absoluteIndex = 0;
-        listContainer.appendChild(createSubheading('Unrouted Orders'));
-        const unroutedDiv = document.createElement('div');
-        unroutedDiv.id = 'unrouted-list';
-        unroutedDiv.style.minHeight = '30px'; 
-        listContainer.appendChild(unroutedDiv);
-        unroutedStops.forEach(s => { unroutedDiv.appendChild(processStop(s, absoluteIndex, false)); absoluteIndex++; });
+        if (routedStops.length > 0) {
+            const uniqueClusters = [...new Set(routedStops.map(s => s.cluster || 0))].sort();
+            uniqueClusters.forEach(clusterId => {
+                const cStops = routedStops.filter(s => (s.cluster || 0) === clusterId);
+                if (cStops.length > 0) {
+                    listContainer.appendChild(createRouteSubheading(clusterId, cStops));
+                    const routedDiv = document.createElement('div');
+                    routedDiv.id = `routed-list-${clusterId}`;
+                    routedDiv.className = 'routed-group-container';
+                    routedDiv.style.minHeight = '30px';
+                    listContainer.appendChild(routedDiv);
+                    cStops.forEach((s, i) => { routedDiv.appendChild(processStop(s, i, true)); });
+                }
+            });
+        }
         
-        listContainer.appendChild(createSubheading('Routed Orders'));
-        const routedDiv = document.createElement('div');
-        routedDiv.id = 'routed-list';
-        routedDiv.style.minHeight = '30px';
-        listContainer.appendChild(routedDiv);
-        routedStops.forEach(s => { routedDiv.appendChild(processStop(s, absoluteIndex, true)); absoluteIndex++; });
+    } else if (viewMode === 'driver' || viewMode === 'routing') {
+        const activeStopsCopy = [...activeStops].sort((a,b) => parseEtaToMinutes(a.eta) - parseEtaToMinutes(b.eta));
+        const uniqueClusters = [...new Set(activeStopsCopy.map(s => s.cluster || 0))].sort();
         
+        if (uniqueClusters.length > 1) {
+            uniqueClusters.forEach(clusterId => {
+                const cStops = activeStopsCopy.filter(s => (s.cluster || 0) === clusterId);
+                if (cStops.length > 0) {
+                    listContainer.appendChild(createRouteSubheading(clusterId, cStops));
+                    const routedDiv = document.createElement('div');
+                    routedDiv.id = `driver-list-${clusterId}`;
+                    routedDiv.className = 'routed-group-container';
+                    listContainer.appendChild(routedDiv);
+                    cStops.forEach((s, i) => { routedDiv.appendChild(processStop(s, i, true)); });
+                }
+            });
+        } else {
+            const mainDiv = document.createElement('div');
+            mainDiv.id = 'main-list-container';
+            listContainer.appendChild(mainDiv);
+            activeStopsCopy.forEach((s, i) => mainDiv.appendChild(processStop(s, i, false)));
+        }
     } else {
         const mainDiv = document.createElement('div');
         mainDiv.id = 'main-list-container';
@@ -715,15 +807,6 @@ function updateSummary() {
     if(statPastEl) statPastEl.innerText = `${pastDue} Past Due`;
 }
 
-function formatTime(dateObj) {
-    let h = dateObj.getHours();
-    let m = dateObj.getMinutes();
-    let ampm = h >= 12 ? 'PM' : 'AM';
-    h = h % 12; h = h ? h : 12;
-    m = m < 10 ? '0'+m : m;
-    return h + ':' + m + ' ' + ampm;
-}
-
 async function handleCalculate() {
     const overlay = document.getElementById('processing-overlay');
     if (overlay) overlay.style.display = 'flex';
@@ -769,7 +852,7 @@ async function handleCalculate() {
         });
 
         if (routeId) {
-            const saveRes = await fetch(WEB_APP_URL, {
+            await fetch(WEB_APP_URL, {
                 method: 'POST',
                 body: JSON.stringify({ action: 'saveRoute', routeId: routeId, driver: driverParam, stops: stops })
             });
@@ -894,19 +977,52 @@ function resetMapView() { if (initialBounds) map.fitBounds(initialBounds, { padd
 function filterList() { const q = document.getElementById('search-input').value.toLowerCase(); document.querySelectorAll('.stop-item, .glide-row').forEach(el => el.style.display = el.getAttribute('data-search').includes(q) ? 'flex' : 'none'); }
 
 function drawRoute() { 
-    if (viewMode === 'manager') {
-        if (map.getSource('route')) map.getSource('route').setData({ "type": "Feature", "geometry": { "type": "LineString", "coordinates": [] } });
-        return;
-    }
-    const act = stops.filter(s => isActiveStop(s) && s.lng && s.lat); 
-    if (act.length < 2) return; 
-    const crd = act.map(s => [s.lng, s.lat]); 
+    if (map.getSource('route')) map.getSource('route').setData({ "type": "FeatureCollection", "features": [] });
+
+    const activeStops = stops.filter(s => isActiveStop(s) && s.lng && s.lat);
+    let routedStops = [];
     
+    if (viewMode === 'manager' && currentInspectorFilter !== 'all') {
+        routedStops = activeStops.filter(s => (s.status||'').toLowerCase() === 'routed' || (s.status||'').toLowerCase() === 'completed');
+    } else if (viewMode !== 'manager') {
+        routedStops = activeStops;
+    }
+    
+    if (routedStops.length < 2) return; 
+
+    routedStops.sort((a,b) => parseEtaToMinutes(a.eta) - parseEtaToMinutes(b.eta));
+    const uniqueClusters = [...new Set(routedStops.map(s => s.cluster || 0))];
+
+    const features = uniqueClusters.map(cId => {
+        const cStops = routedStops.filter(s => (s.cluster || 0) === cId);
+        return {
+            "type": "Feature",
+            "properties": { "cluster": cId },
+            "geometry": { "type": "LineString", "coordinates": cStops.map(s => [s.lng, s.lat]) }
+        };
+    });
+
     if (map.getSource('route')) {
-        map.getSource('route').setData({ "type": "Feature", "geometry": { "type": "LineString", "coordinates": crd } }); 
+        map.getSource('route').setData({ "type": "FeatureCollection", "features": features }); 
     } else { 
-        map.addSource('route', { "type": "geojson", "data": { "type": "Feature", "geometry": { "type": "LineString", "coordinates": crd } } }); 
-        map.addLayer({ "id": "route", "type": "line", "source": "route", "layout": { "line-join": "round", "line-cap": "round" }, "paint": { "line-color": "#2563eb", "line-width": 4, "line-opacity": 0.5 } }); 
+        map.addSource('route', { "type": "geojson", "data": { "type": "FeatureCollection", "features": features } }); 
+        map.addLayer({ 
+            "id": "route", 
+            "type": "line", 
+            "source": "route", 
+            "layout": { "line-join": "round", "line-cap": "round" }, 
+            "paint": { 
+                "line-color": [
+                    "match", ["get", "cluster"],
+                    0, INSPECTOR_PALETTE[0].bg,
+                    1, INSPECTOR_PALETTE[1].bg,
+                    2, INSPECTOR_PALETTE[2].bg,
+                    "#2563eb"
+                ], 
+                "line-width": 4, 
+                "line-opacity": 0.5 
+            } 
+        }); 
     } 
 }
 
@@ -961,8 +1077,21 @@ async function finalizeSync(type) {
 }
 
 function reorderStopsFromDOM() {
-    const unroutedIds = Array.from(document.getElementById('unrouted-list')?.children || []).map(el => el.id.replace('item-', ''));
-    const routedIds = Array.from(document.getElementById('routed-list')?.children || []).map(el => el.id.replace('item-', ''));
+    let unroutedIds = [];
+    let routedIds = [];
+    
+    if (document.getElementById('unrouted-list')) {
+        unroutedIds = Array.from(document.getElementById('unrouted-list').children).map(el => el.id.replace('item-', ''));
+    }
+    
+    document.querySelectorAll('.routed-group-container').forEach(cont => {
+        const rIds = Array.from(cont.children).map(el => el.id.replace('item-', ''));
+        routedIds = routedIds.concat(rIds);
+    });
+    
+    if (unroutedIds.length === 0 && routedIds.length === 0 && document.getElementById('main-list-container')) {
+        routedIds = Array.from(document.getElementById('main-list-container').children).map(el => el.id.replace('item-', ''));
+    }
     
     const visibleIds = new Set([...unroutedIds, ...routedIds]);
     const otherStops = stops.filter(s => !visibleIds.has(s.id));
@@ -974,18 +1103,17 @@ function reorderStopsFromDOM() {
 }
 
 function initSortable() {
-    if (sortableInstance) { sortableInstance.destroy(); sortableInstance = null; }
-    if (sortableRouted) { sortableRouted.destroy(); sortableRouted = null; }
+    sortableInstances.forEach(inst => inst.destroy());
+    sortableInstances = [];
     if (sortableUnrouted) { sortableUnrouted.destroy(); sortableUnrouted = null; }
 
     if (!PERMISSION_MODIFY) return;
 
     if (viewMode === 'manager' && currentInspectorFilter !== 'all') {
         const unroutedEl = document.getElementById('unrouted-list');
-        const routedEl = document.getElementById('routed-list');
 
-        if (routedEl) {
-            sortableRouted = Sortable.create(routedEl, {
+        document.querySelectorAll('.routed-group-container').forEach(routedEl => {
+            const inst = Sortable.create(routedEl, {
                 group: 'manager-routes',
                 handle: '.handle',
                 animation: 150,
@@ -1015,7 +1143,8 @@ function initSortable() {
                     }
                 }
             });
-        }
+            sortableInstances.push(inst);
+        });
         
         if (unroutedEl) {
             sortableUnrouted = Sortable.create(unroutedEl, {
@@ -1024,21 +1153,19 @@ function initSortable() {
             });
         }
     } else if (viewMode !== 'list' && viewMode !== 'manager') {
-        const mainEl = document.getElementById('main-list-container');
-        if (mainEl) {
-            sortableInstance = Sortable.create(mainEl, {
+        document.querySelectorAll('.routed-group-container, #main-list-container').forEach(el => {
+            const inst = Sortable.create(el, {
                 handle: '.handle',
                 animation: 150,
                 onEnd: (evt) => {
-                    const moved = stops.splice(evt.oldIndex, 1)[0];
-                    stops.splice(evt.newIndex, 0, moved);
+                    reorderStopsFromDOM();
                     document.getElementById('controls').style.display = 'flex';
                     render(true); 
                 }
             });
-        }
+            sortableInstances.push(inst);
+        });
     }
 }
 
-// Initial Call
 loadData();

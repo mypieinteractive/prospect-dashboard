@@ -19,6 +19,8 @@ let COMPANY_SERVICE_DELAY = 1;
 let PERMISSION_MODIFY = true;
 let PERMISSION_REOPTIMIZE = true;
 let sortableInstance = null;
+let sortableRouted = null;
+let sortableUnrouted = null;
 let currentRouteCount = 1; 
 let currentInspectorFilter = 'all';
 
@@ -79,7 +81,6 @@ function updateInspectorDropdown() {
     
     filterSelect.innerHTML = filterHtml;
     
-    // Auto-revert to 'all' if the currently selected inspector no longer has active stops
     if (currentVal !== 'all' && !validInspectorIds.has(currentVal)) {
         filterSelect.value = 'all';
         handleInspectorFilterChange('all');
@@ -374,6 +375,12 @@ function updateMarkerColors() {
 // Bulk Actions Logic
 async function triggerBulkDelete() { 
     if(confirm("Delete selected orders?")) { 
+        let affectedRouted = false;
+        selectedIds.forEach(id => {
+            const s = stops.find(st => st.id === id);
+            if (s && (s.status || '').toLowerCase() === 'routed') affectedRouted = true;
+        });
+
         const overlay = document.getElementById('processing-overlay');
         if(overlay) overlay.style.display = 'flex';
 
@@ -393,7 +400,10 @@ async function triggerBulkDelete() {
         selectedIds.clear(); 
         updateInspectorDropdown(); 
         render(); drawRoute(); updateSummary(); updateRouteTimes();
-        document.getElementById('controls').style.display = 'flex'; 
+        
+        if (affectedRouted) {
+            document.getElementById('controls').style.display = 'flex'; 
+        }
 
         setTimeout(() => { if(overlay) overlay.style.display = 'none'; }, 2000);
     } 
@@ -443,6 +453,12 @@ async function handleInspectorChange(e, rowId, selectEl) {
         else { render(); return; }
     }
     
+    let affectedRouted = false;
+    idsToUpdate.forEach(id => {
+        const s = stops.find(st => st.id === id);
+        if (s && (s.status || '').toLowerCase() === 'routed') affectedRouted = true;
+    });
+    
     const overlay = document.getElementById('processing-overlay');
     if(overlay) overlay.style.display = 'flex';
     
@@ -454,6 +470,11 @@ async function handleInspectorChange(e, rowId, selectEl) {
     
     updateInspectorDropdown(); 
     render(); 
+    
+    if (affectedRouted) {
+        document.getElementById('controls').style.display = 'flex'; 
+    }
+    
     if(overlay) overlay.style.display = 'none';
 }
 
@@ -496,8 +517,8 @@ function createSubheading(text) {
 }
 
 function render(isDraft = false) {
-    const list = document.getElementById('stop-list');
-    list.innerHTML = ''; 
+    const listContainer = document.getElementById('stop-list');
+    listContainer.innerHTML = ''; 
     markers.forEach(m => m.remove()); 
     markers = [];
     const bounds = new mapboxgl.LngLatBounds();
@@ -508,7 +529,10 @@ function render(isDraft = false) {
     if (viewMode === 'list' || viewMode === 'manager') {
         const header = document.createElement('div');
         header.className = 'glide-table-header';
+        
+        const handleHeaderHtml = (viewMode === 'manager') ? `<div class="col-handle"></div>` : ``;
         header.innerHTML = `
+            ${handleHeaderHtml}
             <div class="col-num"></div>
             <div class="col-due sortable" onclick="sortTable('dueDate')">Due ${getSortIcon('dueDate')}</div>
             <div class="col-insp sortable" onclick="sortTable('driverName')">Inspector ${getSortIcon('driverName')}</div>
@@ -517,12 +541,12 @@ function render(isDraft = false) {
             <div class="col-client sortable" onclick="sortTable('client')">Client ${getSortIcon('client')}</div>
             <div class="col-type sortable" onclick="sortTable('type')">Order type ${getSortIcon('type')}</div>
         `;
-        list.appendChild(header);
+        listContainer.appendChild(header);
     }
 
     const activeStops = stops.filter(s => isActiveStop(s));
     
-    const processStop = (s, i) => {
+    const processStop = (s, i, showHandle) => {
         const item = document.createElement('div');
         item.id = `item-${s.id}`;
         item.setAttribute('data-search', `${(s.address||'').toLowerCase()} ${(s.client||'').toLowerCase()}`);
@@ -559,8 +583,10 @@ function render(isDraft = false) {
             }
 
             const style = getVisualStyle(s);
+            const handleHtml = viewMode === 'manager' ? `<div class="col-handle ${showHandle ? 'handle' : ''}">${showHandle ? '<i class="fa-solid fa-grip-lines"></i>' : ''}</div>` : ``;
 
             item.innerHTML = `
+                ${handleHtml}
                 <div class="col-num"><div class="num-badge" style="background-color: ${style.bg}; color: ${style.text};">${i + 1}</div></div>
                 <div class="col-due ${urgencyClass}">${dueFmt}</div>
                 ${inspectorHtml}
@@ -596,7 +622,6 @@ function render(isDraft = false) {
             selectedIds.has(s.id) ? selectedIds.delete(s.id) : selectedIds.add(s.id);
             updateSelectionUI(); focusPin(s.id);
         };
-        list.appendChild(item);
 
         if(s.lng && s.lat) {
             const el = document.createElement('div');
@@ -621,6 +646,7 @@ function render(isDraft = false) {
             const m = new mapboxgl.Marker({ element: el, anchor: 'center' }).setLngLat([s.lng, s.lat]).addTo(map);
             m._stopId = s.id; markers.push(m); bounds.extend([s.lng, s.lat]);
         }
+        return item;
     };
 
     if (viewMode === 'manager' && currentInspectorFilter !== 'all') {
@@ -628,16 +654,25 @@ function render(isDraft = false) {
         const routedStops = activeStops.filter(s => (s.status||'').toLowerCase() === 'routed' || (s.status||'').toLowerCase() === 'completed');
         
         let absoluteIndex = 0;
-        if (unroutedStops.length > 0) {
-            list.appendChild(createSubheading('Unrouted Orders'));
-            unroutedStops.forEach(s => { processStop(s, absoluteIndex); absoluteIndex++; });
-        }
-        if (routedStops.length > 0) {
-            list.appendChild(createSubheading('Routed Orders'));
-            routedStops.forEach(s => { processStop(s, absoluteIndex); absoluteIndex++; });
-        }
+        listContainer.appendChild(createSubheading('Unrouted Orders'));
+        const unroutedDiv = document.createElement('div');
+        unroutedDiv.id = 'unrouted-list';
+        unroutedDiv.style.minHeight = '30px'; 
+        listContainer.appendChild(unroutedDiv);
+        unroutedStops.forEach(s => { unroutedDiv.appendChild(processStop(s, absoluteIndex, false)); absoluteIndex++; });
+        
+        listContainer.appendChild(createSubheading('Routed Orders'));
+        const routedDiv = document.createElement('div');
+        routedDiv.id = 'routed-list';
+        routedDiv.style.minHeight = '30px';
+        listContainer.appendChild(routedDiv);
+        routedStops.forEach(s => { routedDiv.appendChild(processStop(s, absoluteIndex, true)); absoluteIndex++; });
+        
     } else {
-        activeStops.forEach((s, i) => processStop(s, i));
+        const mainDiv = document.createElement('div');
+        mainDiv.id = 'main-list-container';
+        listContainer.appendChild(mainDiv);
+        activeStops.forEach((s, i) => mainDiv.appendChild(processStop(s, i, false)));
     }
 
     if (activeStops.filter(s => s.lng && s.lat).length > 0) { 
@@ -645,6 +680,7 @@ function render(isDraft = false) {
     }
     
     updateSelectionUI();
+    initSortable(); 
 }
 
 function updateSummary() {
@@ -924,11 +960,75 @@ async function finalizeSync(type) {
     } catch (e) { alert("Sync Failed."); }
 }
 
+function reorderStopsFromDOM() {
+    const unroutedIds = Array.from(document.getElementById('unrouted-list')?.children || []).map(el => el.id.replace('item-', ''));
+    const routedIds = Array.from(document.getElementById('routed-list')?.children || []).map(el => el.id.replace('item-', ''));
+    
+    const visibleIds = new Set([...unroutedIds, ...routedIds]);
+    const otherStops = stops.filter(s => !visibleIds.has(s.id));
+    
+    const newUnrouted = unroutedIds.map(id => stops.find(s => s.id === id)).filter(Boolean);
+    const newRouted = routedIds.map(id => stops.find(s => s.id === id)).filter(Boolean);
+    
+    stops = [...otherStops, ...newUnrouted, ...newRouted];
+}
+
 function initSortable() {
-    if (PERMISSION_MODIFY && viewMode !== 'list' && viewMode !== 'manager') {
-        if (!sortableInstance) {
-            sortableInstance = Sortable.create(document.getElementById('stop-list'), {
-                handle: '.handle', animation: 150,
+    if (sortableInstance) { sortableInstance.destroy(); sortableInstance = null; }
+    if (sortableRouted) { sortableRouted.destroy(); sortableRouted = null; }
+    if (sortableUnrouted) { sortableUnrouted.destroy(); sortableUnrouted = null; }
+
+    if (!PERMISSION_MODIFY) return;
+
+    if (viewMode === 'manager' && currentInspectorFilter !== 'all') {
+        const unroutedEl = document.getElementById('unrouted-list');
+        const routedEl = document.getElementById('routed-list');
+
+        if (routedEl) {
+            sortableRouted = Sortable.create(routedEl, {
+                group: 'manager-routes',
+                handle: '.handle',
+                animation: 150,
+                onEnd: async (evt) => {
+                    let isMovedToUnrouted = false;
+                    
+                    if (evt.to.id === 'unrouted-list') {
+                        isMovedToUnrouted = true;
+                        const stopId = evt.item.id.replace('item-', '');
+                        const idx = stops.findIndex(s => s.id === stopId);
+                        if (idx > -1) stops[idx].status = ''; 
+                        
+                        const overlay = document.getElementById('processing-overlay');
+                        if(overlay) overlay.style.display = 'flex';
+                        try {
+                            await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: 'unrouteOrder', rowId: stopId }) });
+                        } catch (e) { console.error(e); }
+                        if(overlay) overlay.style.display = 'none';
+                    }
+                    
+                    reorderStopsFromDOM();
+                    document.getElementById('controls').style.display = 'flex';
+                    render(true); 
+                    
+                    if (isMovedToUnrouted) {
+                        drawRoute(); updateSummary(); updateRouteTimes();
+                    }
+                }
+            });
+        }
+        
+        if (unroutedEl) {
+            sortableUnrouted = Sortable.create(unroutedEl, {
+                group: 'manager-routes',
+                animation: 150
+            });
+        }
+    } else if (viewMode !== 'list' && viewMode !== 'manager') {
+        const mainEl = document.getElementById('main-list-container');
+        if (mainEl) {
+            sortableInstance = Sortable.create(mainEl, {
+                handle: '.handle',
+                animation: 150,
                 onEnd: (evt) => {
                     const moved = stops.splice(evt.oldIndex, 1)[0];
                     stops.splice(evt.newIndex, 0, moved);
@@ -940,4 +1040,5 @@ function initSortable() {
     }
 }
 
+// Initial Call
 loadData();

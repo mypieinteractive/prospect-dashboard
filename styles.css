@@ -186,6 +186,10 @@ body.view-map .map-overlay-btns { top: 60px; }
 .stop-sidebar.due-today { background-color: var(--orange); }
 .stop-sidebar.past-due { background-color: var(--red); }
 
+.col-handle { width: 30px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 16px; margin-right: 4px; }
+.col-handle.handle { cursor: grab; }
+.col-handle.handle:active { cursor: grabbing; }
+
 .handle { padding: 0 8px; color: var(--text-muted); cursor: grab; font-size: 18px; display: flex; align-items: center; }
 .csv-box { align-self: center; width: 28px; height: 28px; border: 1.5px solid var(--blue); color: var(--blue); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; border-radius: 4px; margin: 0 8px; }
 

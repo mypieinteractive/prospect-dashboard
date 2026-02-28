@@ -45,7 +45,7 @@ body.view-manager { flex-direction: row; }
 body.view-manager #map-wrapper { flex: 1; height: 100vh; width: auto; }
 body.view-manager #sidebar { width: 50vw; min-width: 10vw; height: 100vh; border-left: none; flex: none; }
 body.view-manager #bulk-complete-btn { display: none !important; }
-body.view-manager #route-summary { display: none !important; }
+body.view-manager #summary-metrics { display: none !important; } /* Hides dist/time for manager */
 
 /* ROUTING VIEW (New for V198.0) */
 body.view-routing { flex-direction: row; }
@@ -104,6 +104,8 @@ body:not(.view-map) #map-brand { display: none; }
 
 #route-summary { padding: 10px 12px; background: #000; color: #fff; display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: bold; }
 .summary-left { display: flex; align-items: center; gap: 12px; }
+.summary-right { display: flex; align-items: center; gap: 15px; }
+#order-stats { font-size: 12px; text-align: right; }
 
 .btn-reoptimize { 
     background: var(--blue); color: white; border: none; border-radius: 6px; 
@@ -116,7 +118,8 @@ body:not(.view-map) #map-brand { display: none; }
 .rocker div { padding: 4px 10px; cursor: pointer; border-radius: 4px; transition: 0.2s; color: var(--text-muted); font-weight: normal; font-size: 15px; }
 .rocker div.active { background: var(--blue); color: white; }
 
-.map-overlay-btns { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); z-index: 200; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+/* Re-positioned to Top Right */
+.map-overlay-btns { position: absolute; top: 70px; right: 15px; z-index: 200; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
 .floating-btn { background: var(--bg-panel); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 20px; padding: 8px 16px; font-weight: bold; font-size: 13px; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.5); display: none; }
 #bulk-remove-btn { background: var(--red); color: white; border: none; }
 #bulk-complete-btn { background: var(--green); color: white; border: none; }

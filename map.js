@@ -1,7 +1,7 @@
-/* Dashboard - V18.13 */
+/* Dashboard - V18.14 */
 /* FILE: map.js */
 /* Changes: */
-/* 1. Replaced cluster-specific dynamic counting with static s._originalIndex mapping to anchor map pin numbers to the UI list during staging. */
+/* 1. Updated static s._originalIndex mapping to fall back on the new synced s._displayIndex, allowing pins to update properly post-optimization while remaining static during staging. */
 
 import { getVisualStyle, MASTER_PALETTE } from './logic.js';
 import { AppState } from './app.js';
@@ -120,8 +120,8 @@ export function renderMapMarkers(params) {
             
             const style = getVisualStyle(s, isManagerView, currentInspectorFilter, currentRouteCount, allStops, inspectors);
             
-            // Replaced dynamic cluster calculation with static index to prevent UI shifting
-            const displayIndex = s._originalIndex || 1;
+            // Sync with ui-render _displayIndex which safely anchors staging and calculates dynamically post-optimization
+            const displayIndex = s._displayIndex || s._originalIndex || 1;
 
             el.innerHTML = `<div class="pin-visual" style="background-color: ${style.bg}; border: 3px solid ${style.border}; color: ${style.text};"><span>${displayIndex}</span></div>`;
 

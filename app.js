@@ -638,6 +638,17 @@ export async function triggerBulkDelete() {
     } finally { UI.hideOverlay(); }
 }
 
+export function resetStopToPending(s) {
+    s.status = 'Pending';
+    s.routeState = 'Pending';
+    s.cluster = 'X';
+    s.manualCluster = false;
+    s.eta = '';
+    s.dist = 0;
+    s.durationSecs = 0;
+    if (Config.viewMode === 'inspector') s.hiddenInInspector = true;
+}
+
 export async function triggerBulkUnroute() { 
     if(!(await UI.customConfirm("Remove selected orders from route?"))) return;
     pushToHistory(); UI.showOverlay();
@@ -652,8 +663,7 @@ export async function triggerBulkUnroute() {
                 dId = AppState.stops[idx].driverId;
                 if (dId) affectedDrivers.add(String(dId));
                 if (isRouteAssigned(AppState.stops[idx].status)) markRouteDirty(AppState.stops[idx].driverId, AppState.stops[idx].cluster);
-                AppState.stops[idx].status = 'Pending'; AppState.stops[idx].cluster = 'X'; AppState.stops[idx].manualCluster = false; AppState.stops[idx].eta = ''; AppState.stops[idx].dist = 0; AppState.stops[idx].durationSecs = 0;
-                if (Config.viewMode === 'inspector') AppState.stops[idx].hiddenInInspector = true; 
+                resetStopToPending(AppState.stops[idx]);
             }
             updatesArray.push({ rowId: id, driverId: dId });
         });
@@ -689,14 +699,7 @@ export async function handleStartOver() {
         const routedStops = AppState.stops.filter(s => String(s.driverId) === String(targetDriverId) && isRouteAssigned(s.status));
         
         routedStops.forEach(s => {
-            s.status = 'Pending'; 
-            s.routeState = 'Pending';
-            s.cluster = 'X';
-            s.manualCluster = false; 
-            s.eta = ''; 
-            s.dist = 0; 
-            s.durationSecs = 0;
-            if (Config.viewMode === 'inspector') s.hiddenInInspector = true; 
+            resetStopToPending(s);
             updatesArray.push({ rowId: s.id, driverId: s.driverId });
         });
         

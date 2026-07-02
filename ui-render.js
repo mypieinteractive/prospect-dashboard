@@ -1,8 +1,9 @@
-/* Dashboard - V1.0 */
+/* Dashboard - V1.1 */
 /* FILE: ui-render.js */
 /* Changes: */
 /* 1. Initial file creation (split rendering logic from ui.js). */
 /* 2. Implemented centralized _displayIndex logic to synchronize list numbering with static map pins during pre-optimization staging and dynamic recalculation post-optimization. */
+/* 3. Removed 'dirty' route check from the _displayIndex calculation so manually dragged orders instantly update their sequence numbers without needing a re-calculate. */
 
 import { AppState, Config, getActiveEndpoints, triggerFullRender } from './app.js';
 import { isActiveStop, isStopVisible, getVisualStyle, MASTER_PALETTE, isRouteAssigned, isTrueInspector } from './logic.js';
@@ -235,14 +236,12 @@ export function render() {
         }
     }
 
-    // NEW SYNCHRONIZED DISPLAY INDEX CALCULATION
     const precalculatedIndexes = new Map();
     const clusterCounts = {};
     activeStops.forEach(s => {
-        const routeKey = `${s.driverId || 'unassigned'}_${s.cluster === 'X' ? 'X' : (s.cluster || 0)}`;
-        const isDirty = AppState.dirtyRoutes.has(routeKey) || AppState.dirtyRoutes.has('all') || AppState.dirtyRoutes.has('endpoints_0') || (!Config.isManagerView && AppState.isAltered);
-        
-        if (!isRouteAssigned(s.status) || isDirty) {
+        // We ONLY lock the display index if the order is completely unrouted.
+        // If it is routed, we always dynamically recount it so drag-and-drop updates instantly.
+        if (!isRouteAssigned(s.status)) {
             // Unrouted or Staging (Pre-Optimization) - Lock list order static
             s._displayIndex = s._originalIndex || 1;
         } else {

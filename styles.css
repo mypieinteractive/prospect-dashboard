@@ -1,9 +1,7 @@
-/* Dashboard - V20.11 */
+/* Dashboard - V20.12 */
 /* FILE: styles.css */
 /* Changes: */
-/* 1. Changed --list-search-bg to rgba(255, 255, 255, 0.05) to make the search field visible. */
-/* 2. Changed text-transform on .address-header-input to 'none' so the placeholder reads naturally instead of forced uppercase. */
-/* 3. Cleaned up a stray closing bracket at the bottom of the file. */
+/* 1. Removed !important flag from .num-badge color property to allow JS inline styles (like Route 3 black text) to properly override the default white color. */
 
 :root { 
     /* Base / Accent */
@@ -742,7 +740,7 @@ body.view-manager #resizer { display: block; border-top: none; }
 .sortable { cursor: pointer; transition: color 0.2s; display: flex; align-items: center; }
 .sortable:hover { color: var(--accent); }
 .col-num { width: 30px; margin-left: 12px; color: var(--row-text-muted); font-size: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
-.num-badge { width: 26px; height: 26px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-weight: 400; font-size: 13px; color: var(--row-text-main) !important; }
+.num-badge { width: 26px; height: 26px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-weight: 400; font-size: 13px; color: var(--row-text-main); }
 .glide-row.completed .num-badge { background-color: var(--row-border) !important; color: var(--row-text-muted) !important; border-color: var(--row-border) !important; }
 
 .col-eta { width: 75px; font-weight: 400; color: var(--row-text-muted); flex-shrink: 0; display: flex; align-items: center; justify-content: center; }

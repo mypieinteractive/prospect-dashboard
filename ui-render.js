@@ -141,7 +141,6 @@ export function render() {
     const isSingleInspector = Config.isManagerView && AppState.currentInspectorFilter !== 'all';
     const isAllInspectors = Config.isManagerView && AppState.currentInspectorFilter === 'all';
     const activeStops = AppState.stops.filter(s => isStopVisible(s, true, Config.isManagerView, AppState.currentInspectorFilter, AppState.currentRouteViewFilter));
-    const hasRouted = activeStops.some(s => isRouteAssigned(s.status));
 
     document.body.classList.toggle('empty-state-active', Config.isManagerView && activeStops.length === 0);
     document.body.classList.toggle('has-orders', activeStops.length > 0);
@@ -230,17 +229,28 @@ export function render() {
         }
     }
 
+    // NEW SYNCHRONIZED DISPLAY INDEX CALCULATION
     const precalculatedIndexes = new Map();
     const clusterCounts = {};
     activeStops.forEach(s => {
-        const key = `${s.driverId || 'unassigned'}_${s.cluster}`;
-        if (!clusterCounts[key]) clusterCounts[key] = 0;
-        clusterCounts[key]++;
-        precalculatedIndexes.set(s.id, clusterCounts[key]);
+        const routeKey = `${s.driverId || 'unassigned'}_${s.cluster === 'X' ? 'X' : (s.cluster || 0)}`;
+        const isDirty = AppState.dirtyRoutes.has(routeKey) || AppState.dirtyRoutes.has('all') || AppState.dirtyRoutes.has('endpoints_0') || (!Config.isManagerView && AppState.isAltered);
+        
+        if (!isRouteAssigned(s.status) || isDirty) {
+            // Unrouted or Staging (Pre-Optimization) - Lock list order static
+            s._displayIndex = s._originalIndex || 1;
+        } else {
+            // Optimized (Routed/Drag-and-Drop) - Sequential Array order
+            const key = `${s.driverId || 'unassigned'}_${s.cluster}`;
+            if (!clusterCounts[key]) clusterCounts[key] = 0;
+            clusterCounts[key]++;
+            s._displayIndex = clusterCounts[key];
+        }
+        precalculatedIndexes.set(s.id, s._displayIndex);
     });
 
     const getDisplayIndex = (s) => {
-        return precalculatedIndexes.get(s.id) || 1;
+        return precalculatedIndexes.get(s.id) || s._displayIndex || s._originalIndex || 1;
     };
 
     const processStop = (s, passedDisplayIndex) => {

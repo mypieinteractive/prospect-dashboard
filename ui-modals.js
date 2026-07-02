@@ -83,6 +83,11 @@ export function customConfirm(msg) {
     });
 }
 
+/**
+ * Displays the modal for manual order entry.
+ *
+ * @returns {void}
+ */
 export function showAddOrderModal() {
     const m = document.getElementById('modal-overlay'); const mc = document.getElementById('modal-content');
     mc.style.padding = '0'; mc.style.background = 'transparent'; mc.style.border = 'none';

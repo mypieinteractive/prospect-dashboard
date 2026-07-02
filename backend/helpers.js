@@ -48,6 +48,12 @@ function safeJsonParse(dataStr, fallback = []) {
     }
 }
 
+/**
+ * Parses a comma-separated coordinate string into a standard format.
+ *
+ * @param {string} coordsStr - The coordinate string (e.g., "32.776, -96.797").
+ * @returns {string|null} The parsed coordinate string or null if invalid.
+ */
 function parseCoordsString(coordsStr) {
     if (!coordsStr || typeof coordsStr !== 'string') return null;
     let parts = coordsStr.split(',');

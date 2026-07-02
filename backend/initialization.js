@@ -7,6 +7,14 @@
 
 const { safeJsonParse, formatStopForManager } = require('./helpers');
 
+/**
+ * Handles initial dashboard data fetch, separating Inspector vs Manager views.
+ *
+ * @param {Object} req - The Express request object.
+ * @param {Object} res - The Express response object.
+ * @param {Object} db - The Firestore database instance.
+ * @returns {Promise<void>}
+ */
 async function getDashboardInit(req, res, db) {
     try {
         let explicitRouteId = req.query.id;

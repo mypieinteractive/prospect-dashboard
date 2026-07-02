@@ -142,6 +142,14 @@ async function callEnterpriseRoutingAPI(startGeo, stopsGeo, endGeo, preserveSequ
     }
 }
 
+/**
+ * Connects to external routing API to generate optimized sequences.
+ *
+ * @param {Object} payload - Data defining the routing problem.
+ * @param {Object} res - The Express response object.
+ * @param {Object} db - The Firestore database instance.
+ * @returns {Promise<void>}
+ */
 async function generateRoute(payload, res, db) {
     const driverRef = db.collection('Users').doc(String(payload.driverId));
     const driverDoc = await driverRef.get();
@@ -376,6 +384,14 @@ async function generateRoute(payload, res, db) {
     });
 }
 
+/**
+ * Updates ETAs without changing sequence order using a TSP solver.
+ *
+ * @param {Object} payload - Data containing current order sequences.
+ * @param {Object} res - The Express response object.
+ * @param {Object} db - The Firestore database instance.
+ * @returns {Promise<void>}
+ */
 async function calculate(payload, res, db) {
     const driverRef = db.collection('Users').doc(String(payload.driverId));
     const driverDoc = await driverRef.get();

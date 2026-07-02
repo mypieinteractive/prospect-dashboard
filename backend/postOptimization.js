@@ -12,6 +12,14 @@
 const { safeJsonParse } = require('./helpers');
 const { sendRouteEmail } = require('./zeptoMailer');
 
+/**
+ * Saves the optimized route to Firestore.
+ *
+ * @param {Object} payload - Data of the optimized route.
+ * @param {Object} res - The Express response object.
+ * @param {Object} db - The Firestore database instance.
+ * @returns {Promise<void>}
+ */
 async function saveRoute(payload, res, db) {
     if (!payload.stops) return res.status(400).json({ error: "Missing stops." });
     
@@ -59,6 +67,14 @@ async function saveRoute(payload, res, db) {
     return res.status(404).json({ error: "Target Route/Driver not found." });
 }
 
+/**
+ * Recreates previously deleted orders.
+ *
+ * @param {Object} payload - Orders to recreate.
+ * @param {Object} res - The Express response object.
+ * @param {Object} db - The Firestore database instance.
+ * @returns {Promise<void>}
+ */
 async function recreateOrders(payload, res, db) {
     const ordersToRestore = payload.orders || [];
     if (ordersToRestore.length === 0) return res.status(400).json({ error: "No orders provided to recreate." });
@@ -112,6 +128,14 @@ async function recreateOrders(payload, res, db) {
     return res.status(404).json({ error: "Target Route/Driver not found for undo action." });
 }
 
+/**
+ * Restores an altered route back to its previously optimized state.
+ *
+ * @param {Object} payload - Route state to restore.
+ * @param {Object} res - The Express response object.
+ * @param {Object} db - The Firestore database instance.
+ * @returns {Promise<void>}
+ */
 async function restoreOriginalRoute(payload, res, db) {
     if (payload.routeId) {
         const dispatchRef = db.collection('Dispatch').doc(String(payload.routeId));
@@ -134,6 +158,14 @@ async function restoreOriginalRoute(payload, res, db) {
     return res.status(400).json({ error: "Missing Route ID." });
 }
 
+/**
+ * Resets a route to its unassigned state.
+ *
+ * @param {Object} payload - Route to reset.
+ * @param {Object} res - The Express response object.
+ * @param {Object} db - The Firestore database instance.
+ * @returns {Promise<void>}
+ */
 async function resetRoute(payload, res, db) {
     const driverId = payload.driverId;
     if (!driverId) return res.status(400).json({ error: "Missing driverId" });
@@ -168,6 +200,15 @@ async function resetRoute(payload, res, db) {
     return res.status(404).json({ error: "Driver not found" });
 }
 
+/**
+ * Commits a route to the Dispatch collection for driver view.
+ *
+ * @param {Object} payload - Route data to dispatch.
+ * @param {Object} res - The Express response object.
+ * @param {Object} db - The Firestore database instance.
+ * @param {Object} admin - The Firebase admin instance.
+ * @returns {Promise<void>}
+ */
 async function dispatchRoute(payload, res, db, admin) {
     const driverRef = db.collection('Users').doc(String(payload.driverId));
     const driverDoc = await driverRef.get();

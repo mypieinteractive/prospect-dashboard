@@ -162,6 +162,12 @@ export function isStopVisible(s, applyRouteFilter, isManagerView, currentInspect
     return true;
 }
 
+/**
+ * Derives visual styling (bg, border, text hex codes) for UI elements based on route.
+ *
+ * @param {number|string} routeId - The route identifier.
+ * @returns {Object} Object containing hex codes for styles.
+ */
 export function getVisualStyle(stopData, isManagerView, currentInspectorFilter, currentRouteCount, stops, inspectors) {
     const isRouted = isRouteAssigned(stopData.status);
     
@@ -197,6 +203,15 @@ export function getVisualStyle(stopData, isManagerView, currentInspectorFilter, 
     return { bg: bgFinal, border: borderHex, text: textHex, line: borderHex };
 }
 
+/**
+ * Initializes K-Means clustering algorithm to partition unassigned orders.
+ * Includes dynamic priority weighting for urgent orders.
+ *
+ * @param {Array} orders - Array of order objects.
+ * @param {number} numRoutes - Number of routes to generate.
+ * @param {number} priorityWeighting - Weighting for order priority (0-100).
+ * @returns {Array} Array of arrays containing clustered orders.
+ */
 export function calculateClusters(unroutedStops, k, priorityWeight, startGeo) {
     if (unroutedStops.length === 0) return;
 

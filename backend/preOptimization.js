@@ -61,6 +61,15 @@ async function performGeocodingWaterfall(address, db, mapsApiKey) {
     return null;
 }
 
+/**
+ * Handles CSV upload and parsing, creating new order documents.
+ *
+ * @param {Object} payload - The request payload containing CSV data.
+ * @param {Object} res - The Express response object.
+ * @param {Object} db - The Firestore database instance.
+ * @param {Object} admin - The Firebase admin instance.
+ * @returns {Promise<void>}
+ */
 async function uploadCsv(payload, res, db, admin) {
     const { csvData, driverId, companyId, csvType, adminId, overrideLock } = payload;
     if (!csvData || !driverId || !companyId || !csvType) return res.status(400).json({ error: "Missing required upload parameters." });
@@ -212,6 +221,15 @@ async function uploadCsv(payload, res, db, admin) {
     return res.status(200).json(responsePayload);
 }
 
+/**
+ * Resolves addresses that failed geocoding during CSV upload.
+ *
+ * @param {Object} payload - The payload containing the unresolved address data.
+ * @param {Object} res - The Express response object.
+ * @param {Object} db - The Firestore database instance.
+ * @param {Object} admin - The Firebase admin instance.
+ * @returns {Promise<void>}
+ */
 async function resolveUnmatchedAddress(payload, res, db, admin) {
     const { driverId, companyId, originalAddress, lat, lng, correctedAddress, skip } = payload;
     if (!originalAddress || !driverId) return res.status(400).json({ error: "Missing parameters" });
@@ -342,6 +360,14 @@ async function resolveUnmatchedAddress(payload, res, db, admin) {
     return res.status(200).json({ success: true, lat: finalLat, lng: finalLng });
 }
 
+/**
+ * Updates a single order's data.
+ *
+ * @param {Object} payload - The updated order data.
+ * @param {Object} res - The Express response object.
+ * @param {Object} db - The Firestore database instance.
+ * @returns {Promise<void>}
+ */
 async function updateOrder(payload, res, db) {
     const { rowId, driverId, updates, routeId } = payload;
     if (!rowId || !updates) return res.status(400).json({error: "Missing parameters"});
@@ -449,6 +475,14 @@ async function updateOrder(payload, res, db) {
     }
 }
 
+/**
+ * Updates multiple orders via batch write.
+ *
+ * @param {Object} payload - Array of orders to update.
+ * @param {Object} res - The Express response object.
+ * @param {Object} db - The Firestore database instance.
+ * @returns {Promise<void>}
+ */
 async function updateMultipleOrders(payload, res, db) {
     const { updatesList, sharedUpdates, routeId } = payload;
     if (!updatesList || !Array.isArray(updatesList)) return res.status(400).json({error: "Missing updatesList"});
@@ -632,6 +666,14 @@ async function updateMultipleOrders(payload, res, db) {
     return res.status(200).json({ success: true, idMapping }); 
 }
 
+/**
+ * Deletes multiple orders via batch write.
+ *
+ * @param {Object} payload - Array of order IDs to delete.
+ * @param {Object} res - The Express response object.
+ * @param {Object} db - The Firestore database instance.
+ * @returns {Promise<void>}
+ */
 async function deleteMultipleOrders(payload, res, db) {
     const { rowIds, routeId } = payload;
     if (!rowIds || !Array.isArray(rowIds)) return res.status(400).json({ error: "Missing rowIds payload" });

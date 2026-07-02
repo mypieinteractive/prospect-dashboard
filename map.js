@@ -100,6 +100,12 @@ export function toggleMobileLasso() {
     }
 }
 
+/**
+ * Renders Mapbox GL JS markers based on the current AppState.
+ *
+ * @param {Array} orders - Array of order objects to render.
+ * @returns {void}
+ */
 export function renderMapMarkers(params) {
     const {
         activeStops, endpointsToDraw, isManagerView, currentInspectorFilter,

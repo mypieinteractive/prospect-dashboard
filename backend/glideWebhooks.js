@@ -12,6 +12,14 @@
 
 const { parseCoordsString } = require('./helpers');
 
+/**
+ * Handles webhook payloads from Glide to update user/driver configuration.
+ *
+ * @param {Object} payload - The request payload from Glide.
+ * @param {Object} res - The Express response object.
+ * @param {Object} db - The Firestore database instance.
+ * @returns {Promise<void>}
+ */
 async function updateUserFromGlide(payload, res, db) {
     const { driverId, companyId, name, email, startAddress, endAddress, startCoords, endCoords, isInspector, modifyRoutes, reoptimize } = payload;
     if (!driverId) return res.status(400).json({ error: "Missing driverId." });
@@ -77,6 +85,14 @@ async function updateUserFromGlide(payload, res, db) {
     return res.status(200).json({ success: true });
 }
 
+/**
+ * Handles webhook payloads from Glide to update company configuration.
+ *
+ * @param {Object} payload - The request payload from Glide.
+ * @param {Object} res - The Express response object.
+ * @param {Object} db - The Firestore database instance.
+ * @returns {Promise<void>}
+ */
 async function updateCompanyFromGlide(payload, res, db) {
     const { 
         companyId, name, address, email, logoUrl, startHour, serviceDelayMins, 
@@ -109,6 +125,14 @@ async function updateCompanyFromGlide(payload, res, db) {
     return res.status(200).json({ success: true });
 }
 
+/**
+ * Handles webhook payloads from Glide to update CSV upload settings.
+ *
+ * @param {Object} payload - The request payload from Glide.
+ * @param {Object} res - The Express response object.
+ * @param {Object} db - The Firestore database instance.
+ * @returns {Promise<void>}
+ */
 async function updateCsvSettingsFromGlide(payload, res, db) {
     const { rowId, companyId, csvType, address, zip, client, dueDate, orderType, lat, lng, city, state } = payload;
     if (!rowId) return res.status(400).json({ error: "Missing rowId." });
@@ -132,6 +156,14 @@ async function updateCsvSettingsFromGlide(payload, res, db) {
     return res.status(200).json({ success: true });
 }
 
+/**
+ * Updates the user's active webhook endpoint URL.
+ *
+ * @param {Object} payload - The request payload from Glide.
+ * @param {Object} res - The Express response object.
+ * @param {Object} db - The Firestore database instance.
+ * @returns {Promise<void>}
+ */
 async function updateEndpoint(payload, res, db) {
     const { driverId, type, address, lat, lng } = payload;
     if (!driverId || !type) return res.status(400).json({ error: "Missing parameters." });

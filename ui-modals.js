@@ -1,3 +1,8 @@
+/* Dashboard - V1.0 */
+/* FILE: ui-modals.js */
+/* Changes: */
+/* 1. Initial file creation (split from ui.js) to isolate overlay, alerts, and modal logic. */
+
 import { AppState, Config, apiFetch, loadData } from './app.js';
 import { isTrueInspector, isStopVisible, isRouteAssigned } from './logic.js';
 import { getMapInstance } from './map.js';

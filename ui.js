@@ -3,7 +3,7 @@
 /* Changes: */
 /* 1. Splitting out modals/alerts into ui-modals.js and rendering functions into ui-render.js */
 
-import { AppState, Config, pushToHistory, triggerFullRender, markRouteDirty, silentSaveRouteState, apiFetch, getActiveEndpoints, loadData } from './app.js';
+import { AppState, Config, pushToHistory, triggerFullRender, markRouteDirty, silentSaveRouteState, apiFetch, getActiveEndpoints, loadData, resetStopToPending } from './app.js';
 import { isActiveStop, isStopVisible, getVisualStyle, MASTER_PALETTE, isRouteAssigned, isTrueInspector, minifyStop, getDistMi, estimateTSP } from './logic.js';
 import { drawRouteMap, resizeMap, focusMapPin, resetMapBounds, getMapInstance, renderMapMarkers, filterMarkersMap, updateMapSelectionStyles } from './map.js';
 
@@ -305,17 +305,13 @@ export function adjustSummaryTextSize() {
     });
 }
 
-export function updateSummary() {
-    const active = AppState.stops.filter(s => isStopVisible(s, true, Config.isManagerView, AppState.currentInspectorFilter, AppState.currentRouteViewFilter) && s.status !== 'Completed');
-
+export function calculateMetricsForStops(stops, initialGeo) {
     let totalMi = 0, totalSecs = 0, dueToday = 0, pastDue = 0;
     const today = new Date(); today.setHours(0, 0, 0, 0);
-    const eps = getActiveEndpoints();
-    let prevGeo = eps.start || null;
-
+    let prevGeo = initialGeo || null;
     let uncalculatedStops = [];
 
-    active.forEach(s => {
+    stops.forEach(s => {
         const distVal = parseFloat(s.dist || 0);
         if (!isNaN(distVal)) totalMi += distVal;
 
@@ -327,10 +323,10 @@ export function updateSummary() {
             uncalculatedStops.push(s);
         }
         
-        if(s.dueDate) {
+        if (s.dueDate) {
             const dueTime = new Date(s.dueDate); dueTime.setHours(0, 0, 0, 0);
-            if(dueTime < today) pastDue++;
-            else if(dueTime.getTime() === today.getTime()) dueToday++;
+            if (dueTime < today) pastDue++;
+            else if (dueTime.getTime() === today.getTime()) dueToday++;
         }
     });
 
@@ -340,6 +336,16 @@ export function updateSummary() {
         totalMi += optimizedDist;
     }
     
+    return { totalMi, totalSecs, dueToday, pastDue };
+}
+
+export function updateSummary() {
+    const active = AppState.stops.filter(s => isStopVisible(s, true, Config.isManagerView, AppState.currentInspectorFilter, AppState.currentRouteViewFilter) && s.status !== 'Completed');
+
+    const eps = getActiveEndpoints();
+    let metrics = calculateMetricsForStops(active, eps.start);
+    let totalMi = metrics.totalMi, totalSecs = metrics.totalSecs, dueToday = metrics.dueToday, pastDue = metrics.pastDue;
+
     let totalHrs = active.length > 0 ? ((totalSecs + (active.length * AppState.COMPANY_SERVICE_DELAY * 60)) / 3600).toFixed(1) : '--';
     
     if (document.getElementById('sum-dist')) document.getElementById('sum-dist').innerText = `${totalMi.toFixed(1)} mi`;
@@ -381,25 +387,9 @@ export function updateRouteTimes() {
 
     for(let i=0; i<3; i++) {
         const clusterStops = activeStops.filter(s => String(s.cluster) === String(i) || (i === 0 && allowUnassigned && s.cluster === 'X'));
-        let totalSecs = 0;
-        let prevGeo = eps.start || null;
 
-        let uncalculatedStops = [];
-
-        clusterStops.forEach(s => {
-            let dur = parseFloat(s.durationSecs || 0);
-            if (dur > 0) {
-                totalSecs += dur;
-                prevGeo = { lat: s.lat, lng: s.lng };
-            } else if (s.lat && s.lng) {
-                uncalculatedStops.push(s);
-            }
-        });
-
-        if (uncalculatedStops.length > 0) {
-            let optimizedDist = estimateTSP(prevGeo, uncalculatedStops);
-            totalSecs += (optimizedDist / 25) * 3600;
-        }
+        let metrics = calculateMetricsForStops(clusterStops, eps.start);
+        let totalSecs = metrics.totalSecs;
 
         const hrs = clusterStops.length > 0 ? ((totalSecs + (clusterStops.length * AppState.COMPANY_SERVICE_DELAY * 60)) / 3600).toFixed(1) : '--';
         if(document.getElementById(`rtime-${i+1}`)) document.getElementById(`rtime-${i+1}`).innerText = clusterStops.length > 0 ? `${hrs} hrs` : '-- hrs';
@@ -567,6 +557,51 @@ export function updateSelectionUI() {
 let sortableInstances = [];
 let sortableUnrouted = null;
 
+async function handleDragEnd(evt) {
+    const hasActiveRoutes = AppState.stops.some(st => isRouteAssigned(st.status));
+    const stopId = evt.item.id.replace('item-', '');
+    const stop = AppState.stops.find(s => String(s.id) === String(stopId));
+
+    if (stop) {
+        const dId = stop.driverId || (!Config.isManagerView ? Config.driverParam : null);
+
+        let matchOld = evt.from.id.match(/(routed|driver)-list-(\d+)/);
+        if (matchOld) markRouteDirty(dId, parseInt(matchOld[2]));
+
+        let matchNew = evt.to.id.match(/(routed|driver)-list-(\d+)/);
+        if (matchNew) {
+            stop.cluster = parseInt(matchNew[2]);
+            stop.manualCluster = true;
+            if (hasActiveRoutes) {
+                stop.status = 'Routed'; stop.routeState = 'Staging';
+                markRouteDirty(dId, stop.cluster);
+            }
+        }
+    }
+
+    if (evt.to.id === 'unrouted-list') {
+        const idx = AppState.stops.findIndex(s => String(s.id) === String(stopId));
+        let dId = null;
+        if (idx > -1) {
+            dId = AppState.stops[idx].driverId;
+            resetStopToPending(AppState.stops[idx]);
+        }
+
+        showOverlay();
+        try {
+            let unroutePayload = {
+                action: 'updateOrder', rowId: stopId, driverId: dId,
+                updates: { status: 'P', eta: '', dist: 0, durationSecs: 0, routeNum: 'X' }, adminId: Config.adminParam
+            };
+            if (!Config.isManagerView) unroutePayload.routeId = Config.routeId;
+            await apiFetch(unroutePayload);
+        } catch (e) { console.error(e); }
+        finally { hideOverlay(); }
+    }
+
+    reorderStopsFromDOM(); triggerFullRender(); updateRouteTimes(); silentSaveRouteState();
+}
+
 export function initSortable() {
     sortableInstances.forEach(inst => inst.destroy());
     sortableInstances = [];
@@ -585,52 +620,7 @@ export function initSortable() {
             const inst = Sortable.create(routedEl, {
                 group: 'manager-routes', delay: 200, delayOnTouchOnly: false, filter: '.static-endpoint, .list-subheading', animation: 150,
                 onStart: () => pushToHistory(),
-                onEnd: async (evt) => {
-                    const hasActiveRoutes = AppState.stops.some(st => isRouteAssigned(st.status));
-                    const stopId = evt.item.id.replace('item-', '');
-                    const stop = AppState.stops.find(s => String(s.id) === String(stopId));
-                    
-                    if (stop) {
-                        const dId = stop.driverId;
-                        let matchOld = evt.from.id.match(/(routed|driver)-list-(\d+)/);
-                        if (matchOld) markRouteDirty(dId, parseInt(matchOld[2]));
-                        
-                        let matchNew = evt.to.id.match(/(routed|driver)-list-(\d+)/);
-                        if (matchNew) {
-                            stop.cluster = parseInt(matchNew[2]);
-                            stop.manualCluster = true;
-                            if (hasActiveRoutes) {
-                                stop.status = 'Routed'; stop.routeState = 'Staging';
-                                markRouteDirty(dId, stop.cluster);
-                            }
-                        }
-                    }
-
-                    if (evt.to.id === 'unrouted-list') {
-                        const idx = AppState.stops.findIndex(s => String(s.id) === String(stopId));
-                        let dId = null;
-                        if (idx > -1) {
-                            dId = AppState.stops[idx].driverId;
-                            AppState.stops[idx].status = 'Pending'; AppState.stops[idx].routeState = 'Pending';
-                            AppState.stops[idx].cluster = 'X'; AppState.stops[idx].manualCluster = false;
-                            AppState.stops[idx].eta = ''; AppState.stops[idx].dist = 0; AppState.stops[idx].durationSecs = 0;
-                            if (Config.viewMode === 'inspector') AppState.stops[idx].hiddenInInspector = true;
-                        }
-                        
-                        showOverlay();
-                        try {
-                            let unroutePayload = { 
-                                action: 'updateOrder', rowId: stopId, driverId: dId, 
-                                updates: { status: 'P', eta: '', dist: 0, durationSecs: 0, routeNum: 'X' }, adminId: Config.adminParam
-                            };
-                            if (!Config.isManagerView) unroutePayload.routeId = Config.routeId;
-                            await apiFetch(unroutePayload);
-                        } catch (e) { console.error(e); }
-                        finally { hideOverlay(); }
-                    }
-                    
-                    reorderStopsFromDOM(); triggerFullRender(); updateRouteTimes(); silentSaveRouteState();
-                }
+                onEnd: handleDragEnd
             });
             sortableInstances.push(inst);
         });
@@ -638,79 +628,14 @@ export function initSortable() {
         if (unroutedEl) {
             sortableUnrouted = Sortable.create(unroutedEl, {
                 group: 'manager-routes', sort: false, delay: 200, delayOnTouchOnly: false, filter: '.list-subheading', animation: 150, onStart: () => pushToHistory(),
-                onEnd: async (evt) => {
-                    const hasActiveRoutes = AppState.stops.some(st => isRouteAssigned(st.status));
-                    const stopId = evt.item.id.replace('item-', '');
-                    const stop = AppState.stops.find(s => String(s.id) === String(stopId));
-
-                    if (stop) {
-                        const dId = stop.driverId;
-                        let matchOld = evt.from.id.match(/(routed|driver)-list-(\d+)/);
-                        if (matchOld) markRouteDirty(dId, parseInt(matchOld[2]));
-
-                        let matchNew = evt.to.id.match(/(routed|driver)-list-(\d+)/);
-                        if (matchNew) {
-                            stop.cluster = parseInt(matchNew[2]);
-                            stop.manualCluster = true;
-                            if (hasActiveRoutes) {
-                                stop.status = 'Routed'; stop.routeState = 'Staging';
-                                markRouteDirty(dId, stop.cluster);
-                            }
-                        }
-                    }
-
-                    if (evt.to.id === 'unrouted-list') {
-                        const idx = AppState.stops.findIndex(s => String(s.id) === String(stopId));
-                        let dId = null;
-                        if (idx > -1) {
-                            dId = AppState.stops[idx].driverId;
-                            AppState.stops[idx].status = 'Pending'; AppState.stops[idx].routeState = 'Pending';
-                            AppState.stops[idx].cluster = 'X'; AppState.stops[idx].manualCluster = false;
-                            AppState.stops[idx].eta = ''; AppState.stops[idx].dist = 0; AppState.stops[idx].durationSecs = 0;
-                            if (Config.viewMode === 'inspector') AppState.stops[idx].hiddenInInspector = true;
-                        }
-
-                        showOverlay();
-                        try {
-                            let unroutePayload = {
-                                action: 'updateOrder', rowId: stopId, driverId: dId,
-                                updates: { status: 'P', eta: '', dist: 0, durationSecs: 0, routeNum: 'X' }, adminId: Config.adminParam
-                            };
-                            if (!Config.isManagerView) unroutePayload.routeId = Config.routeId;
-                            await apiFetch(unroutePayload);
-                        } catch (e) { console.error(e); }
-                        finally { hideOverlay(); }
-                    }
-
-                    reorderStopsFromDOM(); triggerFullRender(); updateRouteTimes(); silentSaveRouteState();
-                }
+                onEnd: handleDragEnd
             });
         }
     } else if (!Config.isManagerView) {
         document.querySelectorAll('.routed-group-container, #main-list-container').forEach(el => {
             const inst = Sortable.create(el, {
                 delay: 200, delayOnTouchOnly: false, filter: '.static-endpoint, .list-subheading', animation: 150, onStart: () => pushToHistory(),
-                onEnd: (evt) => {
-                    const hasActiveRoutes = AppState.stops.some(st => isRouteAssigned(st.status));
-                    const stopId = evt.item.id.replace('item-', '');
-                    const stop = AppState.stops.find(s => String(s.id) === String(stopId));
-                    if (stop) {
-                        const dId = stop.driverId || (!Config.isManagerView ? Config.driverParam : null);
-                        
-                        markRouteDirty(dId, stop.cluster);
-
-                        let matchOld = evt.from.id.match(/(routed|driver)-list-(\d+)/);
-                        if (matchOld) markRouteDirty(dId, parseInt(matchOld[2]));
-                        
-                        let matchNew = evt.to.id.match(/(routed|driver)-list-(\d+)/);
-                        if (matchNew) {
-                            stop.cluster = parseInt(matchNew[2]); stop.manualCluster = true;
-                            if (hasActiveRoutes) { stop.status = 'Routed'; stop.routeState = 'Staging'; markRouteDirty(dId, stop.cluster); }
-                        }
-                    }
-                    
-                    reorderStopsFromDOM(); triggerFullRender(); updateRouteTimes(); silentSaveRouteState();
-                }
+                onEnd: handleDragEnd
             });
             sortableInstances.push(inst);
         });

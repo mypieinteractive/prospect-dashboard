@@ -1,4 +1,4 @@
-/* Dashboard - V18.28 */
+/* Dashboard - V18.29 */
 /* FILE: app.js */
 /* Changes: */
 /* 1. Root Cause 1: Dynamically injects Config.driverParam from the Dispatch document to prevent Inspector save/calc payloads from aborting. */
@@ -7,6 +7,7 @@
 /* 4. Bug Fix 2: Updated handleStartOver to explicitly call setRoutes(1), clear out AppState.dirtyRoutes, and removed the premature UI.reorderStopsFromDOM() call. */
 /* 5. Bug Fix 3: Scoped hasActiveRoutes in handleGenerateRoute and handleCalculate strictly to the current inspector so optimization doesn't ignore stops for newly assigned drivers. */
 /* 6. Bug Fix 4: Added missing UI. prefixes to updateRouteTimes() inside setRoutes, moveSelectedToRoute, and liveClusterUpdate to prevent crashes. */
+/* 7. Bug Fix 5: Removed ETA sorting from loadData, handleGenerateRoute, and handleCalculate so the frontend trusts and preserves the database's array sequence (allowing dragged orders to stay in place on refresh). */
 
 import { 
     expandStop, minifyStop, getStatusCode, getStatusText, isRouteAssigned, 
@@ -260,9 +261,10 @@ export async function loadData() {
             }
         }
 
+        // BUG FIX 5: Remove ETA sort, strictly group by cluster but trust the array's literal order.
         AppState.stops.sort((a, b) => {
             let cA = a.cluster === 'X' ? 999 : (a.cluster || 0); let cB = b.cluster === 'X' ? 999 : (b.cluster || 0);
-            if (cA !== cB) return cA - cB; return timeToMins(a.eta) - timeToMins(b.eta);
+            return cA - cB; 
         });
 
         // Add a stable original index based on the initial load order
@@ -515,9 +517,10 @@ export async function handleGenerateRoute() {
                 AppState.polylines = { ...AppState.polylines, ...parsed }; // MERGE
             }
 
+            // BUG FIX 5: Remove ETA sort, strictly group by cluster but trust the array's literal order.
             AppState.stops.sort((a, b) => {
                 let cA = a.cluster === 'X' ? 999 : (a.cluster || 0); let cB = b.cluster === 'X' ? 999 : (b.cluster || 0);
-                if (cA !== cB) return cA - cB; return timeToMins(a.eta) - timeToMins(b.eta);
+                return cA - cB; 
             });
 
             AppState.isPollingForRoute = false; AppState.dirtyRoutes.clear(); triggerFullRender(); silentSaveRouteState(); 
@@ -585,10 +588,10 @@ export async function handleCalculate() {
 
         AppState.stops = AppState.stops.map(s => returnedStopsMap.has(String(s.id)) ? returnedStopsMap.get(String(s.id)) : s);
 
-        // After an optimization is returned, sort and update the original indices to lock in the new order numbers.
+        // BUG FIX 5: Remove ETA sort, strictly group by cluster but trust the array's literal order.
         AppState.stops.sort((a, b) => {
             let cA = a.cluster === 'X' ? 999 : (a.cluster || 0); let cB = b.cluster === 'X' ? 999 : (b.cluster || 0);
-            if (cA !== cB) return cA - cB; return timeToMins(a.eta) - timeToMins(b.eta);
+            return cA - cB; 
         });
         AppState.stops.forEach((s, idx) => { s._originalIndex = idx + 1; });
 
@@ -819,10 +822,10 @@ export function sortTable(col) {
         if (valA < valB) return AppState.currentSort.asc ? -1 : 1;
         if (valA > valB) return AppState.currentSort.asc ? 1 : -1;
 
+        // BUG FIX 5: Use cluster tie-breaker, but drop ETA sort to preserve true array order
         let cA = a.cluster === 'X' ? 999 : (a.cluster || 0);
         let cB = b.cluster === 'X' ? 999 : (b.cluster || 0);
-        if (cA !== cB) return cA - cB;
-        return timeToMins(a.eta) - timeToMins(b.eta);
+        return cA - cB;
     });
     
     UI.render(); 

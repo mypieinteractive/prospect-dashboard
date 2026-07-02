@@ -1,7 +1,8 @@
 /**
  * zeptoMailer.js
- * VERSION: V15.10
+ * VERSION: V15.11
  * CHANGES:
+ * V15.11 - Added filter to remove Pending and Failed orders from stagingStops so unrouted orders do not show up as "Route NaN" at the bottom of the dispatch email.
  * V15.10 - Structural Hierarchy Update
  * 1. Extracted the Summary stats out of the global white container, making it a standalone element between the map and the routes to improve visibility.
  * 2. Updated the route rendering loop to enclose each individual route inside its own independent white rounded container.
@@ -89,9 +90,15 @@ async function sendRouteEmail(db, payload, routeId, driverData) {
         if (!driverEmail) throw new Error("Driver email address is missing.");
 
         const stagingJsonStr = driverData.activeStaging?.orders || "[]";
-        const stagingStops = safeJsonParse(stagingJsonStr, []);
+        const stagingStopsRaw = safeJsonParse(stagingJsonStr, []);
         
-        if (stagingStops.length === 0) throw new Error("No orders in staging bay to dispatch.");
+        // Filter out any unrouted stops (Pending, Validation Failed, Optimization Failed)
+        const stagingStops = stagingStopsRaw.filter(s => {
+            let stat = String(Array.isArray(s) ? s[11] : (s.status || s.s)).trim().toUpperCase();
+            return stat !== 'P' && stat !== 'PENDING' && stat !== 'V' && stat !== 'VALIDATION FAILED' && stat !== 'O' && stat !== 'OPTIMIZATION FAILED';
+        });
+        
+        if (stagingStops.length === 0) throw new Error("No routed orders in staging bay to dispatch.");
 
         // 3. Resolve Dynamic Timezone from Coordinates
         let localTimeZone = 'America/Chicago'; // Default fallback
@@ -185,7 +192,7 @@ async function sendRouteEmail(db, payload, routeId, driverData) {
             let hrs = stats.count > 0 ? ((stats.secs + (stats.count * serviceDelay * 60)) / 3600).toFixed(1) : 0;
             let dueText = stats.pastDue > 0 ? `<span style="color:#ef4444">${stats.pastDue} Past Due</span>` : (stats.dueToday > 0 ? `<span style="color:#f59e0b">${stats.dueToday} Due Today</span>` : `0 Due`);
             
-            let routeSubInfo = `<span style="color:#6b7280; font-weight:400; text-transform:none;">${stats.miles.toFixed(1)} mi &nbsp;|&nbsp; ${hrs} hrs &nbsp;|&nbsp; ${stats.count} stops &nbsp;|&nbsp; ${dueText}</span>`;
+            let routeSubInfo = `<span style="color:#6b7280; font-weight:400; text-transform:none;">${stats.miles.toFixed(1)} mi  |  ${hrs} hrs  |  ${stats.count} stops  |  ${dueText}</span>`;
 
             let routeHeaderHtml = "";
             if (Object.keys(routesMap).length > 1) {

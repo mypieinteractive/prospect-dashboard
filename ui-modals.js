@@ -1,7 +1,7 @@
-/* Dashboard - V1.0 */
+/* Dashboard - V1.1 */
 /* FILE: ui-modals.js */
 /* Changes: */
-/* 1. Initial file creation (split from ui.js) to isolate overlay, alerts, and modal logic. */
+/* 1. Added logic in handleOpenEmailModal to hide unrouted (Pending/Failed) map markers right before the html2canvas map snapshot is taken, and restore them right after. */
 
 import { AppState, Config, apiFetch, loadData } from './app.js';
 import { isTrueInspector, isStopVisible, isRouteAssigned } from './logic.js';
@@ -271,7 +271,10 @@ export function handleOpenEmailModal() {
         }
 
         const overlaysToHide = mapContainer.querySelectorAll('.map-overlay-btns, #map-hint');
+        const unroutedMarkers = mapContainer.querySelectorAll('.marker.pending, .marker.validation-failed, .marker.optimization-failed');
+
         const originalDisplays = []; overlaysToHide.forEach((el, index) => { originalDisplays[index] = el.style.display; el.style.display = 'none'; });
+        const originalMarkerDisplays = []; unroutedMarkers.forEach((el, index) => { originalMarkerDisplays[index] = el.style.display; el.style.display = 'none'; });
 
         // Add Sproute logo over the Mapbox attribution area
         const sprouteLogoBar = document.createElement('div');
@@ -303,7 +306,10 @@ export function handleOpenEmailModal() {
 
         mapWrapper.style.cssText = originalWrapperStyle;
         if (map) { map.resize(); if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 50, animate: false }); }
+        
         overlaysToHide.forEach((el, index) => el.style.display = originalDisplays[index]);
+        unroutedMarkers.forEach((el, index) => el.style.display = originalMarkerDisplays[index]);
+        
         sprouteLogoBar.remove();
 
         if (isMobileListHidden) {

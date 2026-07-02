@@ -1,7 +1,7 @@
-/* Dashboard - V18.12 */
+/* Dashboard - V18.13 */
 /* FILE: map.js */
 /* Changes: */
-/* 1. Updated renderMapMarkers to use cluster-specific counting so pin numbers reset to 1 for each route when "All Routes" is selected. */
+/* 1. Replaced cluster-specific dynamic counting with static s._originalIndex mapping to anchor map pin numbers to the UI list during staging. */
 
 import { getVisualStyle, MASTER_PALETTE } from './logic.js';
 import { AppState } from './app.js';
@@ -109,7 +109,6 @@ export function renderMapMarkers(params) {
     markers.forEach(m => m.remove());
     markers = [];
     const bounds = new mapboxgl.LngLatBounds();
-    const clusterCounts = {};
 
     activeStops.forEach((s) => {
         if (s.lng && s.lat) {
@@ -121,10 +120,8 @@ export function renderMapMarkers(params) {
             
             const style = getVisualStyle(s, isManagerView, currentInspectorFilter, currentRouteCount, allStops, inspectors);
             
-            const key = `${s.driverId || 'unassigned'}_${s.cluster}`;
-            if (!clusterCounts[key]) clusterCounts[key] = 0;
-            clusterCounts[key]++;
-            const displayIndex = clusterCounts[key];
+            // Replaced dynamic cluster calculation with static index to prevent UI shifting
+            const displayIndex = s._originalIndex || 1;
 
             el.innerHTML = `<div class="pin-visual" style="background-color: ${style.bg}; border: 3px solid ${style.border}; color: ${style.text};"><span>${displayIndex}</span></div>`;
 
@@ -267,7 +264,11 @@ export function drawRouteMap(params) {
             let usePolyline = false;
 
             if (!isDirty && AppState.polylines) {
-                let polylineData = AppState.polylines[`${dId}_${routeKeyNum}`] || AppState.polylines[routeKeyNum] || AppState.polylines[String(routeKeyNum)];
+                let fallbackDriverId = window.Config?.driverParam || dId;
+                let polylineData = AppState.polylines[`${dId}_${routeKeyNum}`]
+                                || AppState.polylines[`${fallbackDriverId}_${routeKeyNum}`]
+                                || AppState.polylines[routeKeyNum]
+                                || AppState.polylines[String(routeKeyNum)];
                 
                 if (polylineData) {
                     let polylineArray = Array.isArray(polylineData) ? polylineData : [polylineData];

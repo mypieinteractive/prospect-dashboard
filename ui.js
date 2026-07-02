@@ -1,10 +1,10 @@
-/* Dashboard - V20.16 */
+/* Dashboard - V20.17 */
 /* FILE: ui.js */
 /* Changes: */
 /* 1. Splitting out modals/alerts into ui-modals.js and rendering functions into ui-render.js */
 
 import { AppState, Config, pushToHistory, triggerFullRender, markRouteDirty, silentSaveRouteState, apiFetch, getActiveEndpoints, loadData } from './app.js';
-import { isActiveStop, isStopVisible, getVisualStyle, MASTER_PALETTE, isRouteAssigned, isTrueInspector, minifyStop } from './logic.js';
+import { isActiveStop, isStopVisible, getVisualStyle, MASTER_PALETTE, isRouteAssigned, isTrueInspector, minifyStop, getDistMi, estimateTSP } from './logic.js';
 import { drawRouteMap, resizeMap, focusMapPin, resetMapBounds, getMapInstance, renderMapMarkers, filterMarkersMap, updateMapSelectionStyles } from './map.js';
 
 export * from './ui-modals.js';
@@ -85,7 +85,6 @@ export function updateInspectorDropdown() {
     AppState.inspectors.forEach((i, idx) => { 
         if (validInspectorIds.has(String(i.id)) && isTrueInspector(i.isInspector)) {
             const color = MASTER_PALETTE[idx % MASTER_PALETTE.length];
-            filterHtml += `<option value="${i.id}" style="color: ${color}; font-weight: 400;"></option>`; 
             filterHtml += `<option value="${i.id}" style="color: ${color}; font-weight: 400;">${i.name}</option>`; 
         }
     });
@@ -266,7 +265,7 @@ export function updateRoutingUI() {
             if (actionBtns) actionBtns.style.width = '100%';
             if (btnReady) btnReady.style.display = 'flex';
             const restoreBtn = document.getElementById('btn-header-restore');
-            if (restoreBtn) restoreBtn.style.display = AppState.isAltered ? 'flex' : 'none';
+            if (restoreBtn) restoreBtn.style.display = Config.isManagerView ? (AppState.isAltered ? 'flex' : 'none') : (AppState.showReset ? 'flex' : 'none');
         }
     } else {
         if (!AppState.PERMISSION_REOPTIMIZE) {
@@ -311,11 +310,22 @@ export function updateSummary() {
 
     let totalMi = 0, totalSecs = 0, dueToday = 0, pastDue = 0;
     const today = new Date(); today.setHours(0, 0, 0, 0);
+    const eps = getActiveEndpoints();
+    let prevGeo = eps.start || null;
+
+    let uncalculatedStops = [];
 
     active.forEach(s => {
         const distVal = parseFloat(s.dist || 0);
         if (!isNaN(distVal)) totalMi += distVal;
-        totalSecs += parseFloat(s.durationSecs || 0);
+
+        let dur = parseFloat(s.durationSecs || 0);
+        if (dur > 0) {
+            totalSecs += dur;
+            prevGeo = { lat: s.lat, lng: s.lng };
+        } else if (s.lat && s.lng) {
+            uncalculatedStops.push(s);
+        }
         
         if(s.dueDate) {
             const dueTime = new Date(s.dueDate); dueTime.setHours(0, 0, 0, 0);
@@ -323,6 +333,12 @@ export function updateSummary() {
             else if(dueTime.getTime() === today.getTime()) dueToday++;
         }
     });
+
+    if (uncalculatedStops.length > 0) {
+        let optimizedDist = estimateTSP(prevGeo, uncalculatedStops);
+        totalSecs += (optimizedDist / 25) * 3600;
+        totalMi += optimizedDist;
+    }
     
     let totalHrs = active.length > 0 ? ((totalSecs + (active.length * AppState.COMPANY_SERVICE_DELAY * 60)) / 3600).toFixed(1) : '--';
     
@@ -356,11 +372,35 @@ export function updateSummary() {
 
 export function updateRouteTimes() {
     if (Config.isManagerView && AppState.currentInspectorFilter === 'all') return;
-    const activeStops = AppState.stops.filter(s => isStopVisible(s, false, Config.isManagerView, AppState.currentInspectorFilter, AppState.currentRouteViewFilter) && s.cluster !== 'X');
+
+    // BUG FIX #1 & #3: If AppState.currentRouteCount is 1, treat unassigned stops ('X') as belonging to Route 1.
+    // Ensure all unassigned stops default to Route 1 for estimation on initial load
+    const allowUnassigned = AppState.currentRouteCount === 1 || AppState.currentRouteCount === undefined;
+    const activeStops = AppState.stops.filter(s => isStopVisible(s, false, Config.isManagerView, AppState.currentInspectorFilter, AppState.currentRouteViewFilter) && (s.cluster !== 'X' || allowUnassigned));
+    const eps = getActiveEndpoints();
+
     for(let i=0; i<3; i++) {
-        const clusterStops = activeStops.filter(s => String(s.cluster) === String(i));
+        const clusterStops = activeStops.filter(s => String(s.cluster) === String(i) || (i === 0 && allowUnassigned && s.cluster === 'X'));
         let totalSecs = 0;
-        clusterStops.forEach(s => totalSecs += parseFloat(s.durationSecs || 0));
+        let prevGeo = eps.start || null;
+
+        let uncalculatedStops = [];
+
+        clusterStops.forEach(s => {
+            let dur = parseFloat(s.durationSecs || 0);
+            if (dur > 0) {
+                totalSecs += dur;
+                prevGeo = { lat: s.lat, lng: s.lng };
+            } else if (s.lat && s.lng) {
+                uncalculatedStops.push(s);
+            }
+        });
+
+        if (uncalculatedStops.length > 0) {
+            let optimizedDist = estimateTSP(prevGeo, uncalculatedStops);
+            totalSecs += (optimizedDist / 25) * 3600;
+        }
+
         const hrs = clusterStops.length > 0 ? ((totalSecs + (clusterStops.length * AppState.COMPANY_SERVICE_DELAY * 60)) / 3600).toFixed(1) : '--';
         if(document.getElementById(`rtime-${i+1}`)) document.getElementById(`rtime-${i+1}`).innerText = clusterStops.length > 0 ? `${hrs} hrs` : '-- hrs';
     }
@@ -875,21 +915,26 @@ window.handleInspectorChange = async function(e, rowId, selectEl) {
     affectedDrivers.add(String(newDriverId)); 
     
     try { 
+        // Only mark source routes dirty if the moved stop was ACTIVELY routed
         idsToUpdate.forEach(id => {
             const s = AppState.stops.find(st => String(st.id) === String(id));
             if (s) {
                 if (s.driverId) affectedDrivers.add(String(s.driverId)); 
                 if (isRouteAssigned(s.status)) markRouteDirty(s.driverId, s.cluster); 
-                s.driverName = newDriverName; s.driverId = newDriverId; s.status = 'Pending'; s.routeState = 'Pending'; s.cluster = 'X'; s.manualCluster = false; s.eta = ''; s.dist = 0; s.durationSecs = 0;
             }
         });
-        let payload = { action: 'updateMultipleOrders', updatesList: idsToUpdate.map(id => ({ rowId: id })), sharedUpdates: { driverName: newDriverName, driverId: newDriverId, status: 'P', eta: '', dist: 0, durationSecs: 0, routeNum: 'X', cluster: 'X' }, adminId: Config.adminParam };
+        
+        // BUG FIX: Set routeNum to 1 and cluster to 0, exactly like a CSV upload. 
+        // The backend optimizer crashes if it receives 'X' for a fresh optimization.
+        let payload = { action: 'updateMultipleOrders', updatesList: idsToUpdate.map(id => ({ rowId: id })), sharedUpdates: { driverName: newDriverName, driverId: newDriverId, status: 'P', eta: '', dist: 0, durationSecs: 0, routeNum: 1, cluster: 0 }, adminId: Config.adminParam };
         if (!Config.isManagerView) payload.routeId = Config.routeId;
         
         await apiFetch(payload); 
         AppState.selectedIds.clear(); 
         updateInspectorDropdown(); 
-        triggerFullRender(); 
+        
+        // Mirror CSV Upload: Fetch the pure, truthful state directly from the backend
+        await loadData();
         
         affectedDrivers.forEach(dId => silentSaveRouteState(dId));
     } catch (err) { 

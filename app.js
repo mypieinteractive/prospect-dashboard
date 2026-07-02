@@ -1,9 +1,12 @@
-/* Dashboard - V18.26 */
+/* Dashboard - V18.28 */
 /* FILE: app.js */
 /* Changes: */
 /* 1. Root Cause 1: Dynamically injects Config.driverParam from the Dispatch document to prevent Inspector save/calc payloads from aborting. */
 /* 2. Root Cause 2: Wraps the 'Staging' auto-dirty loop in loadData() with an 'if (Config.isManagerView)' check so the Inspector dashboard stops instantly re-dirtying itself upon Restore. */
 /* 3. Updated silentSaveRouteState to fully support saving payloads without strict Manager driver ID checks. */
+/* 4. Bug Fix 2: Updated handleStartOver to explicitly call setRoutes(1), clear out AppState.dirtyRoutes, and removed the premature UI.reorderStopsFromDOM() call. */
+/* 5. Bug Fix 3: Scoped hasActiveRoutes in handleGenerateRoute and handleCalculate strictly to the current inspector so optimization doesn't ignore stops for newly assigned drivers. */
+/* 6. Bug Fix 4: Added missing UI. prefixes to updateRouteTimes() inside setRoutes, moveSelectedToRoute, and liveClusterUpdate to prevent crashes. */
 
 import { 
     expandStop, minifyStop, getStatusCode, getStatusText, isRouteAssigned, 
@@ -60,6 +63,7 @@ export const AppState = {
     ccCompanyDefault: true,
     isAlteredRoute: false,
     isAltered: false,
+    showReset: false,
     unmatchedAddressesQueue: [],
     currentUnmatchedIndex: 0,
     currentUploadDriverId: null,
@@ -187,6 +191,12 @@ export async function loadData() {
             AppState.isAltered = false;
         }
 
+        if (typeof data.showReset !== 'undefined') {
+            AppState.showReset = (data.showReset === true || String(data.showReset).toLowerCase() === 'true');
+        } else {
+            AppState.showReset = AppState.isAltered; // Fallback
+        }
+
         let globalRouteState = data.routeState || 'Pending';
         let globalDriverId = data.driverId || (Config.isManagerView && AppState.currentInspectorFilter !== 'all' ? AppState.currentInspectorFilter : Config.driverParam);
         
@@ -255,6 +265,9 @@ export async function loadData() {
             if (cA !== cB) return cA - cB; return timeToMins(a.eta) - timeToMins(b.eta);
         });
 
+        // Add a stable original index based on the initial load order
+        AppState.stops.forEach((s, idx) => { s._originalIndex = idx + 1; });
+
         let maxCluster = 0;
         AppState.stops.forEach(s => { if (s.cluster !== 'X' && s.cluster > maxCluster) maxCluster = s.cluster; });
         AppState.currentRouteCount = Math.max(1, maxCluster + 1);
@@ -306,7 +319,7 @@ export async function loadData() {
     finally { if (!AppState.isPollingForRoute && !AppState.isFreshGlideRefresh) UI.hideOverlay(); UI.updateUndoUI(); }
 }
 
-export function triggerFullRender() { UI.render(); UI.drawRoute(); UI.updateSummary(); UI.initSortable(); }
+export function triggerFullRender() { UI.render(); UI.drawRoute(); UI.updateSummary(); UI.initSortable(); UI.updateRouteTimes(); }
 
 export function markRouteDirty(driverId, clusterIdx) { 
     const dId = driverId || (!Config.isManagerView ? Config.driverParam : 'unassigned');
@@ -320,7 +333,7 @@ export function markRouteDirty(driverId, clusterIdx) {
     
     // ISSUES #1 & #5 FIX: Explicitly flag UI as altered and wipe ETAs/Polylines
     if (!Config.isManagerView) {
-        AppState.isAltered = true;
+        AppState.showReset = true;
         AppState.dirtyRoutes.add('all'); 
     }
 }
@@ -398,8 +411,8 @@ export function silentSaveRouteState(explicitDriverId = null) {
     let macroState = 'Ready';
     
     if (routedStops.length === 0) macroState = 'Pending';
-    else if (AppState.dirtyRoutes.has('endpoints_0') || (!Config.isManagerView && AppState.isAltered)) macroState = 'Staging-endpoint'; 
-    else if (AppState.dirtyRoutes.size > 0 || (!Config.isManagerView && AppState.isAltered)) macroState = 'Staging';
+    else if (AppState.dirtyRoutes.has('endpoints_0')) macroState = 'Staging-endpoint'; 
+    else if (AppState.dirtyRoutes.size > 0) macroState = 'Staging';
     
     // POLYLINE DETOX SCRIPT
     let sanitizedPolylines = {};
@@ -415,7 +428,14 @@ export function silentSaveRouteState(explicitDriverId = null) {
     }
     
     let payload = { action: 'saveRoute', driverId: inspId, stops: minified, routeState: macroState, polylines: sanitizedPolylines };
-    if (!Config.isManagerView) payload.routeId = Config.routeId;
+    if (!Config.isManagerView) {
+        payload.routeId = Config.routeId;
+        if (AppState.showReset) {
+            payload.forceShowReset = true;
+        } else {
+            payload.forceShowReset = false;
+        }
+    }
     
     apiFetch(payload).catch(e => console.log(e));
 }
@@ -439,12 +459,12 @@ export async function handleGenerateRoute() {
     if (Config.isManagerView && !insp) return;
     UI.showOverlay();
 
-    let stopsToOptimize = []; const isEndpointsDirty = AppState.dirtyRoutes.has('endpoints_0'); const hasActiveRoutes = AppState.stops.some(s => isRouteAssigned(s.status));
+    let stopsToOptimize = []; const isEndpointsDirty = AppState.dirtyRoutes.has('endpoints_0'); 
     
-    // ISSUE #6 FIX: Unconditional Inspector View filtering
-    if (!Config.isManagerView && AppState.isAltered) {
-        stopsToOptimize = AppState.stops.filter(s => isActiveStop(s, Config.isManagerView) && s.lng && s.lat && s.cluster !== 'X');
-    } else if (isEndpointsDirty) {
+    // BUG FIX: Strictly scope hasActiveRoutes to the active inspector
+    const hasActiveRoutes = AppState.stops.some(s => isRouteAssigned(s.status) && String(s.driverId) === String(insp?.id || Config.driverParam));
+    
+    if (isEndpointsDirty) {
         stopsToOptimize = AppState.stops.filter(s => isActiveStop(s, Config.isManagerView) && s.lng && s.lat && String(s.driverId) === String(insp?.id || Config.driverParam));
         if (hasActiveRoutes) stopsToOptimize = stopsToOptimize.filter(s => s.cluster !== 'X');
     } else {
@@ -501,6 +521,7 @@ export async function handleGenerateRoute() {
             });
 
             AppState.isPollingForRoute = false; AppState.dirtyRoutes.clear(); triggerFullRender(); silentSaveRouteState(); 
+            UI.hideOverlay();
         } else if (data.status === 'queued' || data.success) {
             let pqPayload = { action: 'processQueue', driverId: insp?.id || Config.driverParam };
             if (!Config.isManagerView) pqPayload.routeId = Config.routeId;
@@ -515,13 +536,15 @@ export async function handleCalculate() {
     UI.showOverlay();
     try {
         const activeStops = AppState.stops.filter(s => isActiveStop(s, Config.isManagerView) && s.lng && s.lat);
-        const isEndpointsDirty = AppState.dirtyRoutes.has('endpoints_0'); const hasActiveRoutes = AppState.stops.some(s => isRouteAssigned(s.status));
+        const isEndpointsDirty = AppState.dirtyRoutes.has('endpoints_0'); 
+        
+        // BUG FIX: Strictly scope hasActiveRoutes to the active inspector
+        const activeDriverId = Config.isManagerView ? AppState.currentInspectorFilter : Config.driverParam;
+        const hasActiveRoutes = AppState.stops.some(s => isRouteAssigned(s.status) && String(s.driverId) === String(activeDriverId));
+        
         let stopsToCalculate = [];
 
-        // ISSUE #6 FIX: Unconditional Inspector View filtering
-        if (!Config.isManagerView && AppState.isAltered) {
-            stopsToCalculate = activeStops.filter(s => isRouteAssigned(s.status) && s.cluster !== 'X');
-        } else if (isEndpointsDirty) {
+        if (isEndpointsDirty) {
             stopsToCalculate = activeStops; if (hasActiveRoutes) stopsToCalculate = stopsToCalculate.filter(s => s.cluster !== 'X');
         } else {
             stopsToCalculate = activeStops.filter(s => {
@@ -561,7 +584,14 @@ export async function handleCalculate() {
         }
 
         AppState.stops = AppState.stops.map(s => returnedStopsMap.has(String(s.id)) ? returnedStopsMap.get(String(s.id)) : s);
-        if (!Config.isManagerView) AppState.isAltered = true;
+
+        // After an optimization is returned, sort and update the original indices to lock in the new order numbers.
+        AppState.stops.sort((a, b) => {
+            let cA = a.cluster === 'X' ? 999 : (a.cluster || 0); let cB = b.cluster === 'X' ? 999 : (b.cluster || 0);
+            if (cA !== cB) return cA - cB; return timeToMins(a.eta) - timeToMins(b.eta);
+        });
+        AppState.stops.forEach((s, idx) => { s._originalIndex = idx + 1; });
+
         AppState.historyStack = []; AppState.dirtyRoutes.clear(); AppState.originalStops = JSON.parse(JSON.stringify(AppState.stops)); 
         
         triggerFullRender(); silentSaveRouteState();
@@ -659,7 +689,6 @@ export async function handleStartOver() {
         const routedStops = AppState.stops.filter(s => String(s.driverId) === String(targetDriverId) && isRouteAssigned(s.status));
         
         routedStops.forEach(s => {
-            markRouteDirty(s.driverId, s.cluster);
             s.status = 'Pending'; 
             s.routeState = 'Pending';
             s.cluster = 'X';
@@ -678,11 +707,11 @@ export async function handleStartOver() {
         }
         
         AppState.selectedIds.clear(); 
+        AppState.dirtyRoutes.clear();
         if (!Config.isManagerView) AppState.isAlteredRoute = true;
-
-        UI.reorderStopsFromDOM(); 
+        
+        setRoutes(1);
         triggerFullRender(); 
-        UI.updateRouteTimes(); 
         silentSaveRouteState(targetDriverId);
     } catch (err) { 
         UI.hideOverlay(); 
@@ -702,6 +731,7 @@ export async function handleRestoreOriginal() {
         
         // ISSUE #3 FIX: Clean local state instantly so the UI knows the restore was successful before pulling fresh data
         AppState.isAltered = false;
+        AppState.showReset = false;
         AppState.dirtyRoutes.clear();
         
         await apiFetch(payload); 
@@ -806,13 +836,25 @@ export function setRoutes(num) {
     const headerGenBtnText = document.getElementById('btn-header-generate-text');
     if (headerGenBtnText) headerGenBtnText.innerText = "Optimize";
     
-    AppState.stops.forEach(s => s.manualCluster = false); 
+    const activeDriverId = Config.isManagerView ? AppState.currentInspectorFilter : Config.driverParam;
+
+    AppState.stops.forEach(s => {
+        if (String(s.driverId) === String(activeDriverId) && isActiveStop(s, Config.isManagerView)) {
+            s.manualCluster = false;
+            // Ghost ETA fix: Unassign any stops in routes beyond the new current route count
+            if (s.cluster !== 'X' && s.cluster >= num) {
+                s.cluster = 'X';
+            }
+        }
+    });
     
-    const activeStops = AppState.stops.filter(s => isActiveStop(s, Config.isManagerView) && s.lng && s.lat);
+    const activeStops = AppState.stops.filter(s => isActiveStop(s, Config.isManagerView) && String(s.driverId) === String(activeDriverId) && s.lng && s.lat);
+    const eps = getActiveEndpoints();
     if(activeStops.length > 0) {
-        calculateClusters(activeStops, num, parseInt(document.getElementById('slider-priority')?.value || 0));
+        calculateClusters(activeStops, num, parseInt(document.getElementById('slider-priority')?.value || 0), eps.start);
         updateMarkerColorsMap(AppState.stops, Config.isManagerView, AppState.currentInspectorFilter, AppState.currentRouteCount, AppState.inspectors);
-        updateRouteTimes();
+        UI.updateRouteTimes();
+        UI.render();
     }
     UI.updateSelectionUI(); 
     UI.updatePrioritySliderUI();
@@ -840,7 +882,7 @@ export function moveSelectedToRoute(cIdx) {
     AppState.selectedIds.clear();
     
     triggerFullRender(); 
-    updateRouteTimes(); 
+    UI.updateRouteTimes(); 
     
     if (affectedDrivers.size > 0) {
         affectedDrivers.forEach(dId => silentSaveRouteState(dId));
@@ -850,11 +892,13 @@ export function moveSelectedToRoute(cIdx) {
 }
 
 export function liveClusterUpdate() {
-    const activeStops = AppState.stops.filter(s => isActiveStop(s, Config.isManagerView) && s.lng && s.lat);
+    const activeDriverId = Config.isManagerView ? AppState.currentInspectorFilter : Config.driverParam;
+    const activeStops = AppState.stops.filter(s => isActiveStop(s, Config.isManagerView) && String(s.driverId) === String(activeDriverId) && s.lng && s.lat);
+    const eps = getActiveEndpoints();
     if(activeStops.length > 0 && AppState.currentRouteCount > 1) {
-        calculateClusters(activeStops, AppState.currentRouteCount, parseInt(document.getElementById('slider-priority')?.value || 0));
+        calculateClusters(activeStops, AppState.currentRouteCount, parseInt(document.getElementById('slider-priority')?.value || 0), eps.start);
         updateMarkerColorsMap(AppState.stops, Config.isManagerView, AppState.currentInspectorFilter, AppState.currentRouteCount, AppState.inspectors);
-        updateRouteTimes();
+        UI.updateRouteTimes();
         UI.render();
     }
 }

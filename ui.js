@@ -505,7 +505,7 @@ export function render() {
         const routeKey = `${s.driverId || 'unassigned'}_${s.cluster === 'X' ? 'X' : (s.cluster || 0)}`;
         let etaTime = (!isRoutedStop || AppState.dirtyRoutes.has(routeKey) || AppState.dirtyRoutes.has('all')) ? '--' : (s.eta || '--');
 
-        if (Config.isManagerView) {
+if (Config.isManagerView) {
             item.className = `glide-row ${s.status.toLowerCase().replace(' ', '-')} ${AppState.currentDisplayMode}`;
             let inspectorHtml = `<div class="col-insp" style="display: ${isSingleInspector ? 'none' : 'flex'}; justify-content: center;">${s.driverName || Config.driverParam || 'Unassigned'}</div>`;
             
@@ -535,7 +535,7 @@ export function render() {
             const style = getVisualStyle(s, Config.isManagerView, AppState.currentInspectorFilter, AppState.currentRouteCount, AppState.stops, AppState.inspectors);
 
             item.innerHTML = `
-                <div class="col-num"><div class="num-badge" style="background-color: ${style.bg}; border: 3px solid ${style.border}; color: ${style.text};">${displayIndex}</div></div>
+                <div class="col-num"><div class="num-badge" style="background-color: ${style.bg}; border: 3px solid ${style.border}; color: ${style.text} !important;">${displayIndex}</div></div>
                 <div class="col-eta" style="display: ${isAllInspectors ? 'none' : 'flex'}; justify-content: center; text-align: center;">${etaTime}</div>
                 <div class="col-due ${urgencyClass}">${dueFmt}</div>
                 <div class="col-addr">
@@ -554,7 +554,7 @@ export function render() {
             const style = getVisualStyle(s, Config.isManagerView, AppState.currentInspectorFilter, AppState.currentRouteCount, AppState.stops, AppState.inspectors);
 
             item.innerHTML = `
-                <div class="stop-sidebar ${urgencyClass}" style="background-color: ${style.bg}; color: ${style.text}; border-left: 3px solid ${style.border};">${displayIndex}</div>
+                <div class="stop-sidebar ${urgencyClass}" style="background-color: ${style.bg}; color: ${style.text} !important; border-left: 3px solid ${style.border};">${displayIndex}</div>
                 <div class="csv-box">${(s.app || "--").substring(0,2).toUpperCase()}</div>
                 <div class="stop-content">
                     <div class="stop-addr-title">${(s.address||'').split(',')[0]}</div>

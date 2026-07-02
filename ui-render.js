@@ -1,3 +1,9 @@
+/* Dashboard - V1.0 */
+/* FILE: ui-render.js */
+/* Changes: */
+/* 1. Initial file creation (split rendering logic from ui.js). */
+/* 2. Implemented centralized _displayIndex logic to synchronize list numbering with static map pins during pre-optimization staging and dynamic recalculation post-optimization. */
+
 import { AppState, Config, getActiveEndpoints, triggerFullRender } from './app.js';
 import { isActiveStop, isStopVisible, getVisualStyle, MASTER_PALETTE, isRouteAssigned, isTrueInspector } from './logic.js';
 import { drawRouteMap, resizeMap, getMapInstance, renderMapMarkers, filterMarkersMap } from './map.js';

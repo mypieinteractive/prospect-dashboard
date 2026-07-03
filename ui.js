@@ -651,34 +651,16 @@ export function reorderStopsFromDOM() {
         const rIds = Array.from(cont.children).map(el => el.id.replace('item-', '')).filter(Boolean);
         routedIds = routedIds.concat(rIds);
     });
-    let mainListFallback = false;
     if (unroutedIds.length === 0 && routedIds.length === 0 && document.getElementById('main-list-container')) {
         routedIds = Array.from(document.getElementById('main-list-container').children).map(el => el.id.replace('item-', '')).filter(Boolean);
-        mainListFallback = true;
     }
     
-    const seenIds = new Set();
+    const visibleIds = new Set([...unroutedIds, ...routedIds, ...completedIds]);
+    const otherStops = AppState.stops.filter(s => !visibleIds.has(s.id));
     
-    const processIds = (ids, expectedStatusCondition) => {
-        return ids.map(id => {
-            if (seenIds.has(id)) return null;
-            const stop = AppState.stops.find(s => String(s.id) === String(id));
-            if (!stop) return null;
-
-            // If the element is a SortableJS drag-and-drop ghost duplicate, its current AppState status
-            // won't match the list we are parsing it from. Discard it.
-            if (!mainListFallback && expectedStatusCondition && !expectedStatusCondition(stop)) return null;
-
-            seenIds.add(id);
-            return stop;
-        }).filter(Boolean);
-    };
-
-    const newCompleted = processIds(completedIds, (s) => String(s.status).toLowerCase() === 'completed');
-    const newUnrouted = processIds(unroutedIds, (s) => !isRouteAssigned(s.status) && String(s.status).toLowerCase() !== 'completed');
-    const newRouted = processIds(routedIds, (s) => isRouteAssigned(s.status) && String(s.status).toLowerCase() !== 'completed');
-
-    const otherStops = AppState.stops.filter(s => !seenIds.has(String(s.id)));
+    const newUnrouted = unroutedIds.map(id => AppState.stops.find(s => String(s.id) === String(id))).filter(Boolean);
+    const newRouted = routedIds.map(id => AppState.stops.find(s => String(s.id) === String(id))).filter(Boolean);
+    const newCompleted = completedIds.map(id => AppState.stops.find(s => String(s.id) === String(id))).filter(Boolean);
     
     AppState.stops = [...otherStops, ...newCompleted, ...newUnrouted, ...newRouted];
 }

@@ -1,8 +1,9 @@
-/* Dashboard - V1.2 */
+/* Dashboard - V1.1 */
 /* FILE: ui-render.js */
 /* Changes: */
-/* 1. Added dynamic sequence numbering for the Unrouted list when active routes are present, while preserving the static originalIndex lock during the pre-optimization phase. */
-/* 2. Implemented strict ID deduplication inside reorderStopsFromDOM to destroy ghost DOM elements and prevent duplicate rowIds from being saved to the database. */
+/* 1. Initial file creation (split rendering logic from ui.js). */
+/* 2. Implemented centralized _displayIndex logic to synchronize list numbering with static map pins during pre-optimization staging and dynamic recalculation post-optimization. */
+/* 3. Removed 'dirty' route check from the _displayIndex calculation so manually dragged orders instantly update their sequence numbers without needing a re-calculate. */
 
 import { AppState, Config, getActiveEndpoints, triggerFullRender } from './app.js';
 import { isActiveStop, isStopVisible, getVisualStyle, MASTER_PALETTE, isRouteAssigned, isTrueInspector } from './logic.js';
@@ -237,19 +238,12 @@ export function render() {
 
     const precalculatedIndexes = new Map();
     const clusterCounts = {};
-    const hasActiveRoutes = AppState.stops.some(st => isRouteAssigned(st.status));
-    let unroutedCount = 0;
-
     activeStops.forEach(s => {
+        // We ONLY lock the display index if the order is completely unrouted.
+        // If it is routed, we always dynamically recount it so drag-and-drop updates instantly.
         if (!isRouteAssigned(s.status)) {
-            // Unrouted or Staging: 
-            // If active routes exist, dynamically count. Otherwise, lock list order static.
-            if (hasActiveRoutes) {
-                unroutedCount++;
-                s._displayIndex = unroutedCount;
-            } else {
-                s._displayIndex = s._originalIndex || 1;
-            }
+            // Unrouted or Staging (Pre-Optimization) - Lock list order static
+            s._displayIndex = s._originalIndex || 1;
         } else {
             // Optimized (Routed/Drag-and-Drop) - Sequential Array order
             const key = `${s.driverId || 'unassigned'}_${s.cluster}`;
@@ -509,126 +503,4 @@ export function render() {
         }
 
     }, 20);
-}
-
-export function initSortable() {
-    sortableInstances.forEach(inst => inst.destroy());
-    sortableInstances = [];
-    if (sortableUnrouted) { sortableUnrouted.destroy(); sortableUnrouted = null; }
-
-    if (!AppState.PERMISSION_MODIFY) return;
-
-    if (AppState.currentRoutingState === 'Pending') return;
-
-    if (Config.isManagerView && AppState.currentInspectorFilter === 'all') {
-        return; 
-    } else if (Config.isManagerView && AppState.currentInspectorFilter !== 'all') {
-        const unroutedEl = document.getElementById('unrouted-list');
-
-        document.querySelectorAll('.routed-group-container').forEach(routedEl => {
-            const inst = Sortable.create(routedEl, {
-                group: 'manager-routes', delay: 200, delayOnTouchOnly: false, filter: '.static-endpoint, .list-subheading', animation: 150,
-                onStart: () => pushToHistory(),
-                onEnd: handleDragEnd
-            });
-            sortableInstances.push(inst);
-        });
-        
-        if (unroutedEl) {
-            sortableUnrouted = Sortable.create(unroutedEl, {
-                group: 'manager-routes', sort: false, delay: 200, delayOnTouchOnly: false, filter: '.list-subheading', animation: 150, onStart: () => pushToHistory(),
-                onEnd: handleDragEnd
-            });
-        }
-    } else if (!Config.isManagerView) {
-        document.querySelectorAll('.routed-group-container, #main-list-container').forEach(el => {
-            const inst = Sortable.create(el, {
-                delay: 200, delayOnTouchOnly: false, filter: '.static-endpoint, .list-subheading', animation: 150, onStart: () => pushToHistory(),
-                onEnd: handleDragEnd
-            });
-            sortableInstances.push(inst);
-        });
-    }
-}
-
-export function reorderStopsFromDOM() {
-    let unroutedIds = []; let routedIds = []; let completedIds = [];
-    if (document.getElementById('unrouted-list')) unroutedIds = Array.from(document.getElementById('unrouted-list').children).map(el => el.id.replace('item-', '')).filter(Boolean);
-    if (document.getElementById('completed-list')) completedIds = Array.from(document.getElementById('completed-list').children).map(el => el.id.replace('item-', '')).filter(Boolean);
-    
-    document.querySelectorAll('.routed-group-container').forEach(cont => {
-        const rIds = Array.from(cont.children).map(el => el.id.replace('item-', '')).filter(Boolean);
-        routedIds = routedIds.concat(rIds);
-    });
-    if (unroutedIds.length === 0 && routedIds.length === 0 && document.getElementById('main-list-container')) {
-        routedIds = Array.from(document.getElementById('main-list-container').children).map(el => el.id.replace('item-', '')).filter(Boolean);
-    }
-    
-    // Ghost DOM element deduplication safety check
-    const seenIds = new Set();
-    const deduplicate = (ids) => {
-        return ids.filter(id => {
-            if (seenIds.has(id)) return false;
-            seenIds.add(id);
-            return true;
-        });
-    };
-
-    unroutedIds = deduplicate(unroutedIds);
-    routedIds = deduplicate(routedIds);
-    completedIds = deduplicate(completedIds);
-
-    const visibleIds = new Set([...unroutedIds, ...routedIds, ...completedIds]);
-    const otherStops = AppState.stops.filter(s => !visibleIds.has(s.id));
-    
-    const newUnrouted = unroutedIds.map(id => AppState.stops.find(s => String(s.id) === String(id))).filter(Boolean);
-    const newRouted = routedIds.map(id => AppState.stops.find(s => String(s.id) === String(id))).filter(Boolean);
-    const newCompleted = completedIds.map(id => AppState.stops.find(s => String(s.id) === String(id))).filter(Boolean);
-    
-    AppState.stops = [...otherStops, ...newCompleted, ...newUnrouted, ...newRouted];
-}
-
-async function handleDragEnd(evt) {
-    const hasActiveRoutes = AppState.stops.some(st => isRouteAssigned(st.status));
-    const stopId = evt.item.id.replace('item-', '');
-    const stop = AppState.stops.find(s => String(s.id) === String(stopId));
-
-    if (stop) {
-        const dId = stop.driverId || (!Config.isManagerView ? Config.driverParam : null);
-
-        let matchOld = evt.from.id.match(/(routed|driver)-list-(\d+)/);
-        if (matchOld) markRouteDirty(dId, parseInt(matchOld[2]));
-
-        let matchNew = evt.to.id.match(/(routed|driver)-list-(\d+)/);
-        if (matchNew) {
-            stop.cluster = parseInt(matchNew[2]);
-            stop.manualCluster = true;
-            if (hasActiveRoutes) {
-                stop.status = 'Routed'; stop.routeState = 'Staging';
-                markRouteDirty(dId, stop.cluster);
-            }
-        }
-    }
-
-    if (evt.to.id === 'unrouted-list') {
-        const idx = AppState.stops.findIndex(s => String(s.id) === String(stopId));
-        let dId = null;
-        if (idx > -1) {
-            dId = AppState.stops[idx].driverId;
-            resetStopToPending(AppState.stops[idx]);
-        }
-
-        showOverlay();
-        try {
-            let unroutePayload = {
-                action: 'updateOrder', rowId: stopId, driverId: dId,
-                updates: { status: 'P', eta: '', dist: 0, durationSecs: 0, routeNum: 'X' }, adminId: Config.adminParam
-            };
-            if (!Config.isManagerView) unroutePayload.routeId = Config.routeId;
-            await apiFetch(unroutePayload);
-        } catch (e) { console.error(e); }
-        finally { hideOverlay(); }
-    }
-
-    reorderStopsFromDOM(); triggerFullRender(); updateRouteTimes(); silentSaveRouteState();
 }

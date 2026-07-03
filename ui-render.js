@@ -238,12 +238,19 @@ export function render() {
 
     const precalculatedIndexes = new Map();
     const clusterCounts = {};
+    let unroutedCount = 0;
+    const hasActiveRoutes = AppState.stops.some(st => isRouteAssigned(st.status));
+
     activeStops.forEach(s => {
-        // We ONLY lock the display index if the order is completely unrouted.
-        // If it is routed, we always dynamically recount it so drag-and-drop updates instantly.
         if (!isRouteAssigned(s.status)) {
-            // Unrouted or Staging (Pre-Optimization) - Lock list order static
-            s._displayIndex = s._originalIndex || 1;
+            if (hasActiveRoutes) {
+                // If routes exist, unrouted items act dynamically
+                unroutedCount++;
+                s._displayIndex = unroutedCount;
+            } else {
+                // Pre-optimization or no routes - Lock list order statically
+                s._displayIndex = s._originalIndex || 1;
+            }
         } else {
             // Optimized (Routed/Drag-and-Drop) - Sequential Array order
             const key = `${s.driverId || 'unassigned'}_${s.cluster}`;

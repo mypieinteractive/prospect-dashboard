@@ -386,7 +386,7 @@ body.view-managersmall .insp-select {
 /* Managersmall Shell Layout */
 body.view-managersmall { 
     overflow: hidden; 
-    position: absolute !important; 
+    position: fixed !important; 
     top: 0 !important; 
     bottom: 0 !important; /* Flush with the bottom of the iframe */
     height: 100% !important; /* Fill the iframe completely */

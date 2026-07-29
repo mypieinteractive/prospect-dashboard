@@ -1036,7 +1036,7 @@ window.syncBodyHeight = function() {
     const isInspector = viewParam === 'inspector' || document.body.classList.contains('view-inspector');
     
     if (isMobile) {
-        document.body.style.height = ''; 
+        document.body.style.height = window.innerHeight + 'px'; 
     } else if (isInspector) {
         document.body.style.height = window.innerHeight + 'px';
     } else {

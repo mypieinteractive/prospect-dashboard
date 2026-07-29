@@ -401,7 +401,7 @@ body.view-managersmall #mobile-view-toggle { order: 4; display: flex !important;
 body.view-managersmall #routing-controls { order: 5; }
 body.view-managersmall #route-view-toggles { order: 6; }
 body.view-managersmall #list-header-container { order: 7; }
-body.view-managersmall #stop-list { order: 8; overflow-y: auto; flex: 1; min-height: 0; background: var(--sidebar-bg); padding-bottom: 85px !important; }
+body.view-managersmall #stop-list { order: 8; overflow-y: auto; flex: 1; min-height: 0; background: var(--sidebar-bg); padding-bottom: 45px !important; }
 body.view-managersmall #map-container { order: 9; flex: 1; min-height: 0; position: relative; }
 body.view-managersmall #resizer { display: none; }
 

@@ -1,7 +1,8 @@
-/* Dashboard - V20.12 */
+/* Dashboard - V20.13 */
 /* FILE: styles.css */
 /* Changes: */
 /* 1. Removed !important flag from .num-badge color property to allow JS inline styles (like Route 3 black text) to properly override the default white color. */
+/* 2. Fixed mobile offset by converting stop-list padding to a ::after pseudo-element spacer to respect 100% height boundaries within the Glide embed. */
 
 :root { 
     /* Base / Accent */
@@ -398,7 +399,24 @@ body.view-managersmall #mobile-view-toggle { order: 4; display: flex !important;
 body.view-managersmall #routing-controls { order: 5; }
 body.view-managersmall #route-view-toggles { order: 6; }
 body.view-managersmall #list-header-container { order: 7; }
-body.view-managersmall #stop-list { order: 8; overflow-y: auto; flex: 1; min-height: 0; background: var(--sidebar-bg); padding-bottom: 180px !important; }
+
+/* FIX: Let the container fill normally, remove padding */
+body.view-managersmall #stop-list { 
+    order: 8; 
+    overflow-y: auto; 
+    flex: 1; 
+    min-height: 0; 
+    background: var(--sidebar-bg); 
+}
+
+/* FIX: Add an invisible scroll spacer inside the container to push content up past the FAB */
+body.view-managersmall #stop-list::after {
+    content: "";
+    display: block;
+    height: 85px;
+    width: 100%;
+}
+
 body.view-managersmall #map-container { order: 9; flex: 1; min-height: 0; position: relative; }
 body.view-managersmall #resizer { display: none; }
 

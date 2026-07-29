@@ -387,11 +387,8 @@ body.view-managersmall {
     overflow: hidden; 
     position: absolute !important; 
     top: 0 !important; 
-    
-    /* ---> ADJUST THE 60px BELOW TO FIND THE PERFECT MOBILE FIT <--- */
-    bottom: 400px !important; 
-    
-    height: auto !important; 
+    bottom: 0 !important; /* Flush with the bottom of the iframe */
+    height: 100% !important; /* Fill the iframe completely */
     width: 100% !important;
 }
 body.view-managersmall #app-body-wrapper { display: contents !important; }

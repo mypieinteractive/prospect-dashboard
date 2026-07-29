@@ -1,11 +1,13 @@
 # File: Dockerfile
-# Version: V1.5
+# Version: V1.6
 # Changes from previous version:
-# - Changed the method of patching the global NPM 'undici' vulnerability. 
-# - Instead of running 'npm install' inside the npm directory (which threw a 404 error on @npmcli/docs), we now install the patched undici globally and forcefully overwrite NPM's internal vulnerable version using a direct file copy (rm & cp). This bypasses the NPM registry validation for NPM's own deep dependencies.
+# - Updated base image from node:20-alpine to node:22-alpine to satisfy engine requirements for npm@latest (v12+).
+# - Retained the method of patching the global NPM 'undici' vulnerability.
+# - Instead of running 'npm install' inside the npm directory (which threw a 404 error on @npmcli/docs), we now install the patched undici globally and forcefully overwrite NPM's internal vulnerable version using a direct file copy (rm & cp).
+# This bypasses the NPM registry validation for NPM's own deep dependencies.
 
-# Use the official, modern Node 20 alpine image
-FROM node:20-alpine
+# Use the official, modern Node 22 alpine image
+FROM node:22-alpine
 
 # Force Alpine package updates for security patches
 RUN apk update && apk upgrade --no-cache

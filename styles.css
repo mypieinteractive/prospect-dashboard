@@ -389,7 +389,7 @@ body.view-managersmall {
     top: 0 !important; 
     
     /* ---> ADJUST THE 60px BELOW TO FIND THE PERFECT MOBILE FIT <--- */
-    bottom: 0px !important; 
+    bottom: 400px !important; 
     
     height: auto !important; 
     width: 100% !important;
@@ -401,7 +401,7 @@ body.view-managersmall #mobile-view-toggle { order: 4; display: flex !important;
 body.view-managersmall #routing-controls { order: 5; }
 body.view-managersmall #route-view-toggles { order: 6; }
 body.view-managersmall #list-header-container { order: 7; }
-body.view-managersmall #stop-list { order: 8; overflow-y: auto; flex: 1; min-height: 0; background: var(--sidebar-bg); padding-bottom: 65px !important; }
+body.view-managersmall #stop-list { order: 8; overflow-y: auto; flex: 1; min-height: 0; background: var(--sidebar-bg); padding-bottom: 85px !important; }
 body.view-managersmall #map-container { order: 9; flex: 1; min-height: 0; position: relative; }
 body.view-managersmall #resizer { display: none; }
 
